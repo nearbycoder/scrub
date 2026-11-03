@@ -44,10 +44,10 @@ struct UpdateSheet: View {
         switch updater.phase {
         case .available(let release):
             ScrollView {
-                Text((try? AttributedString(markdown: release.notes, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(release.notes))
+                ReleaseNotes(markdown: release.notes)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
-                    .padding(12)
+                    .padding(14)
             }
             .frame(height: 220)
             .background(.background.secondary, in: .rect(cornerRadius: 8))
@@ -70,5 +70,52 @@ struct UpdateSheet: View {
                 Button("OK") { dismiss() }.keyboardShortcut(.defaultAction)
             }
         }
+    }
+}
+
+/// Renders GitHub release notes: headings, bullets and inline formatting. Code blocks and bare links are left out.
+private struct ReleaseNotes: View {
+    let markdown: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                switch line {
+                case .heading(let text):
+                    Text(inline(text)).font(.headline).padding(.top, 6)
+                case .bullet(let text):
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("•").foregroundStyle(.secondary)
+                        Text(inline(text))
+                    }
+                case .paragraph(let text):
+                    Text(inline(text))
+                }
+            }
+        }
+    }
+
+    private enum Line { case heading(String), bullet(String), paragraph(String) }
+
+    private var lines: [Line] {
+        var result: [Line] = []
+        var inCode = false
+        for raw in markdown.components(separatedBy: .newlines) {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            if line.hasPrefix("```") { inCode.toggle(); continue }
+            if inCode || line.isEmpty || line.hasPrefix("http") { continue }
+            if line.hasPrefix("#") {
+                result.append(.heading(line.drop(while: { $0 == "#" }).trimmingCharacters(in: .whitespaces)))
+            } else if line.hasPrefix("- ") || line.hasPrefix("* ") {
+                result.append(.bullet(String(line.dropFirst(2))))
+            } else {
+                result.append(.paragraph(line))
+            }
+        }
+        return result
+    }
+
+    private func inline(_ text: String) -> AttributedString {
+        (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text)
     }
 }
