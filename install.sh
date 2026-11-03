@@ -1,6 +1,6 @@
 #!/bin/bash
-# Scrub installer: downloads the latest release, installs it to /Applications and clears the
-# quarantine flag so macOS lets the (ad-hoc signed, non-notarized) app open.
+# Scrub installer: downloads the latest release (signed with Developer ID and notarized by Apple)
+# and installs it to /Applications.
 #   curl -fsSL https://raw.githubusercontent.com/nearbycoder/scrub/main/install.sh | bash
 set -euo pipefail
 
@@ -27,7 +27,7 @@ ditto -x -k "$tmp/Scrub.zip" "$tmp"
 if pgrep -x Scrub >/dev/null; then osascript -e 'quit app "Scrub"' || true; sleep 1; fi
 rm -rf "$DEST/Scrub.app"
 mv "$tmp/Scrub.app" "$DEST/Scrub.app"
-xattr -dr com.apple.quarantine "$DEST/Scrub.app" 2>/dev/null || true
+spctl -a -t exec "$DEST/Scrub.app" 2>/dev/null || echo "Warning: Gatekeeper could not verify Scrub's notarization."
 
 bold "Installed Scrub to $DEST/Scrub.app"
 open "$DEST/Scrub.app"

@@ -563,7 +563,7 @@ footer nav a:hover{color:var(--text);text-decoration:underline;text-underline-of
         <div class="glass rv">
           <span class="badge">Recommended</span>
           <h3>One-line install</h3>
-          <p>Downloads the latest release, installs Scrub, and clears the quarantine flag so it opens without a Gatekeeper warning.</p>
+          <p>Downloads the latest notarized release and installs Scrub in your Applications folder.</p>
           <div class="term">
             <div class="term-bar" aria-hidden="true"><i></i><i></i><i></i><span>Terminal</span></div>
             <div class="cmd">
@@ -581,19 +581,8 @@ footer nav a:hover{color:var(--text);text-decoration:underline;text-underline-of
             <a class="btn btn-g" href="https://github.com/nearbycoder/scrub/releases/latest/download/Scrub.zip"><svg aria-hidden="true"><use href="#dlI"/></svg>Scrub.zip</a>
           </div>
           <div class="note">
-            <h4>Opening it the first time</h4>
-            <p class="small" style="margin-top:0">Scrub is ad-hoc signed, not notarized, so macOS may block the first launch. After moving it to Applications, either:</p>
-            <ol>
-              <li>Run this in Terminal:
-                <div class="term">
-                  <div class="cmd">
-                    <code id="cmd-xattr">xattr -dr com.apple.quarantine /Applications/Scrub.app</code>
-                    <button class="copy" type="button" data-copy="cmd-xattr" aria-label="Copy quarantine command"><svg class="cp" aria-hidden="true"><use href="#cpy"/></svg><svg class="ok" aria-hidden="true"><use href="#chk"/></svg><span>Copy</span></button>
-                  </div>
-                </div>
-              </li>
-              <li>Or open <b>System Settings → Privacy &amp; Security</b> and click <b>Open Anyway</b>.</li>
-            </ol>
+            <h4>Signed and notarized</h4>
+            <p class="small" style="margin-top:0">Every release is signed with a Developer ID certificate and notarized by Apple, so it opens like any other app. Drag Scrub to Applications and launch it.</p>
           </div>
         </div>
       </div>
@@ -620,10 +609,10 @@ footer nav a:hover{color:var(--text);text-decoration:underline;text-underline-of
           </div>
         </details>
         <details class="glass rv">
-          <summary>Why isn’t it notarized?<i aria-hidden="true"><svg viewBox="0 0 14 14"><path d="M7 1.5v11M1.5 7h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></i></summary>
+          <summary>Is it signed and notarized?<i aria-hidden="true"><svg viewBox="0 0 14 14"><path d="M7 1.5v11M1.5 7h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></i></summary>
           <div class="a">
-            <p>Notarization requires a paid Apple Developer Program membership. Scrub releases are ad-hoc signed instead, so Gatekeeper flags the app the first time you open a downloaded copy.</p>
-            <p>The one-line installer clears that quarantine flag for you. If you used the DMG or ZIP, run <code>xattr -dr com.apple.quarantine /Applications/Scrub.app</code>, or go to System Settings → Privacy &amp; Security and click Open Anyway. You can also build Scrub yourself from source.</p>
+            <p>Yes. Releases are signed with a Developer ID certificate, checked by Apple’s notary service, and stapled with the notarization ticket, so Gatekeeper accepts them without warnings.</p>
+            <p>To check a copy yourself, run <code>spctl -a -vv /Applications/Scrub.app</code>. It should report <code>source=Notarized Developer ID</code>. You can also build Scrub yourself from source.</p>
           </div>
         </details>
         <details class="glass rv">

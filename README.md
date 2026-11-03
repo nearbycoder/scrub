@@ -69,21 +69,15 @@ Scrub uses standard macOS building blocks: a source-list sidebar, unified toolba
 
 ## Install
 
-**One line** (downloads the latest release, installs it to `/Applications` and clears the quarantine flag):
+**One line** (downloads the latest release and installs it to `/Applications`):
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/nearbycoder/scrub/main/install.sh | bash
 ```
 
-**Or download it yourself:** [Scrub.dmg](https://github.com/nearbycoder/scrub/releases/latest/download/Scrub.dmg) or [Scrub.zip](https://github.com/nearbycoder/scrub/releases/latest/download/Scrub.zip). Drag Scrub to Applications, then run:
+**Or download it yourself:** [Scrub.dmg](https://github.com/nearbycoder/scrub/releases/latest/download/Scrub.dmg) or [Scrub.zip](https://github.com/nearbycoder/scrub/releases/latest/download/Scrub.zip), then drag Scrub to Applications.
 
-```sh
-xattr -dr com.apple.quarantine /Applications/Scrub.app
-```
-
-You can also open it once, then go to **System Settings → Privacy & Security** and click **Open Anyway**.
-
-> Scrub is ad-hoc signed and not notarized, because notarization requires a paid Apple Developer account. That's why macOS asks you to approve it once. The source is all here, and you can build it yourself in a minute (see below).
+Releases are signed with a Developer ID certificate and notarized by Apple, with the ticket stapled to the app, so Scrub opens like any other app you download. To check a copy yourself, run `spctl -a -vv /Applications/Scrub.app`, which should report `source=Notarized Developer ID`.
 
 **Requirements:** macOS 26 Tahoe or later. Universal binary for Apple silicon and Intel.
 
@@ -136,7 +130,14 @@ Cleanup rules live in [`CleanCatalog.swift`](Scrub/Features/Clean/CleanCatalog.s
 
 ## Releasing
 
-Push a tag such as `v1.0.1`. The [release workflow](.github/workflows/release.yml) builds the universal app and attaches `Scrub.dmg` and `Scrub.zip` to the GitHub release. To release from your own machine instead, run `./scripts/build-release.sh 1.0.1` and then `gh release create v1.0.1 dist/*`.
+Releases are built on a Mac that's signed in to Xcode with a Developer Program account:
+
+```sh
+SCRUB_TEAM_ID=YOURTEAMID ./scripts/build-release.sh 1.2.0   # archive, Developer ID sign, notarize, staple
+gh release create v1.2.0 dist/*
+```
+
+The script uses Xcode's cloud-managed Developer ID certificate and the account signed in to Xcode, so it doesn't need a local certificate or a password. To also notarize the disk image, provide `notarytool` credentials through `SCRUB_NOTARY_PROFILE`, or through `SCRUB_NOTARY_KEY`, `SCRUB_NOTARY_KEY_ID` and `SCRUB_NOTARY_ISSUER`. Without `SCRUB_TEAM_ID`, the script makes an ad-hoc signed build. That's what [CI](.github/workflows/ci.yml) does on every push.
 
 ## Acknowledgements
 

@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Build (ad-hoc signed)
+        run: ./scripts/build-release.sh
+      - name: Test
+        run: xcodebuild -project Scrub.xcodeproj -scheme Scrub -derivedDataPath build/test test -quiet
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Scrub-unsigned
+          path: dist/
