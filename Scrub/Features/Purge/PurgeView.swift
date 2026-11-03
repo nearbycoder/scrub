@@ -3,85 +3,146 @@ import SwiftUI
 struct PurgeView: View {
     @Environment(AppState.self) private var state
     @State private var confirm = false
-    @State private var collapsed: Set<String> = []
+    @State private var expanded: Set<String> = []
+    @State private var selection = Set<String>()
+
     private var model: PurgeModel { state.purge }
 
     var body: some View {
-        Page(spacing: 16) {
-            SectionHeader(section: .purge) {
-                Button { model.scan() } label: {
-                    Label(model.projects.isEmpty ? "Scan Projects" : "Rescan", systemImage: "magnifyingglass")
+        content
+            .navigationTitle("Project Purge")
+            .navigationSubtitle(model.existingRoots.map(Paths.abbreviate).joined(separator: ", "))
+            .toolbar {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button { addRoot() } label: { Label("Add Folder", systemImage: "folder.badge.plus") }
+                        .help("Add a folder to search for projects")
+                    Button { model.scan() } label: { Label("Rescan", systemImage: "arrow.clockwise") }
+                        .disabled(model.isScanning || model.isPurging)
                 }
-                .buttonStyle(.glass)
-                .disabled(model.isScanning)
             }
-            rootsCard
-            if let freed = model.lastFreed {
-                ResultBanner(title: "Freed \(freed.formattedBytes)", message: "Build folders are recreated the next time you install or build.",
-                             colors: AppSection.purge.colors) { model.lastFreed = nil }
+            .confirmationDialog("Remove \(model.selectedArtifacts.count) build folders?", isPresented: $confirm) {
+                Button(state.settings.purgeRemovalMode == .trash ? "Move to Trash" : "Delete \(model.selectedSize.formattedBytes)", role: .destructive) {
+                    model.purge()
+                }
+            } message: {
+                Text("They only contain generated files. Install or build the project again to restore them.")
             }
-            if model.isScanning {
-                HStack {
-                    Spacer()
-                    VStack(spacing: 14) {
-                        ScanningOrb(colors: AppSection.purge.colors, size: 150)
-                        Text("Looking through \(model.scannedDirs.formatted()) folders…").foregroundStyle(.secondary)
+    }
+
+    @ViewBuilder private var content: some View {
+        if model.isScanning {
+            ScanningPlaceholder(title: "Finding Build Folders", symbol: "hammer",
+                                detail: "\(model.scannedDirs.formatted()) folders checked")
+        } else if model.projects.isEmpty {
+            ContentUnavailableView {
+                Label("Project Purge", systemImage: "hammer")
+            } description: {
+                if let freed = model.lastFreed {
+                    Text("Freed \(freed.formattedBytes). Nothing else to remove.")
+                } else if model.existingRoots.isEmpty {
+                    Text("Add the folder where you keep your code to find node_modules, build, target, DerivedData and other generated folders.")
+                } else {
+                    Text("Find node_modules, build, target, .build, DerivedData and other generated folders. Projects you've worked on in the last \(state.settings.purgeRecentDays) days stay unselected.")
+                }
+            } actions: {
+                if model.existingRoots.isEmpty {
+                    Button("Add Folder…") { addRoot() }.buttonStyle(.glassProminent).controlSize(.large)
+                } else {
+                    Button("Scan Projects") { model.scan() }.buttonStyle(.glassProminent).controlSize(.large)
+                }
+            }
+        } else {
+            table
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    ActionBar {
+                        SelectionSummary(bytes: model.selectedSize,
+                                         detail: "\(model.selectedArtifacts.count) of \(model.projects.flatMap(\.artifacts).count) folders")
+                    } actions: {
+                        Button { confirm = true } label: { Text("Remove").padding(.horizontal, 10) }
+                            .buttonStyle(.glassProminent)
+                            .controlSize(.large)
+                            .disabled(model.selectedArtifacts.isEmpty || model.isPurging)
                     }
-                    Spacer()
                 }
-                .padding(.vertical, 30)
-            } else if model.projects.isEmpty {
-                GlassCard {
-                    EmptyState(symbol: "shippingbox.fill", title: "Find stale build folders",
-                               message: "node_modules, target, .build, DerivedData, venv and friends can add up to tens of gigabytes. Projects you touched in the last \(state.settings.purgeRecentDays) days stay unselected.",
-                               colors: AppSection.purge.colors)
-                }
-            } else {
-                ForEach(model.projects) { project in projectCard(project) }
-            }
-        }
-        .safeAreaInset(edge: .bottom) {
-            if !model.projects.isEmpty {
-                HStack(spacing: 16) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text(model.selectedSize.formattedBytes).font(.title3.bold().monospacedDigit()).contentTransition(.numericText())
-                        Text("\(model.selectedArtifacts.count) of \(model.projects.flatMap(\.artifacts).count) folders").font(.caption).foregroundStyle(.secondary)
-                    }
-                    Button { confirm = true } label: {
-                        Label("Purge", systemImage: "shippingbox.and.arrow.backward.fill").font(.headline).padding(.horizontal, 14).padding(.vertical, 4)
-                    }
-                    .buttonStyle(.glassProminent)
-                    .tint(AppSection.purge.tint)
-                    .controlSize(.large)
-                    .fixedSize()
-                    .disabled(model.selectedArtifacts.isEmpty || model.isPurging)
-                }
-                .padding(.leading, 22).padding(.trailing, 10).padding(.vertical, 10)
-                .glassEffect(.regular, in: .capsule)
-                .padding(.bottom, 18)
-            }
-        }
-        .confirmationDialog("Purge \(model.selectedArtifacts.count) build folders?", isPresented: $confirm) {
-            Button(state.settings.purgeRemovalMode == .trash ? "Move to Trash" : "Delete \(model.selectedSize.formattedBytes)", role: .destructive) { model.purge() }
-        } message: {
-            Text("These folders only hold generated files. Run your package manager or build again to restore them.")
+                .onAppear { expanded = Set(model.projects.prefix(12).map(\.id)) }
         }
     }
 
-    private var rootsCard: some View {
-        GlassCard(padding: 14) {
-            HStack(spacing: 10) {
-                Image(systemName: "folder.fill").foregroundStyle(AppSection.purge.gradient)
-                Text("Searching").foregroundStyle(.secondary)
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(model.existingRoots, id: \.self) { root in Pill(text: Paths.abbreviate(root), color: .orange) }
-                        if model.existingRoots.isEmpty { Text("No project folders found. Add one →").foregroundStyle(.secondary) }
-                    }
+    private struct Row: Identifiable, Hashable {
+        let id: String
+        let project: ProjectArtifacts
+        let artifact: BuildArtifact?
+    }
+
+    private var table: some View {
+        Table(of: Row.self, selection: $selection) {
+            TableColumn("Name") { row in nameCell(row) }
+                .width(min: 240, ideal: 380)
+            TableColumn("Kind") { row in
+                Text(row.artifact?.kind ?? (row.project.artifacts.count == 1 ? "1 folder" : "\(row.project.artifacts.count) folders"))
+                    .foregroundStyle(.secondary)
+            }
+            .width(min: 100, ideal: 140, max: 200)
+            TableColumn("Last Activity") { row in
+                if row.artifact == nil, let d = row.project.lastActivity {
+                    Text(d, format: .relative(presentation: .named))
+                        .foregroundStyle(d.daysAgo < state.settings.purgeRecentDays ? .green : .secondary)
                 }
-                Button("Add Folder…") { addRoot() }.buttonStyle(.glass)
+            }
+            .width(min: 90, ideal: 120, max: 160)
+            TableColumn("Size") { row in
+                SizeText(bytes: row.artifact?.size ?? row.project.size)
+                    .fontWeight(row.artifact == nil ? .semibold : .regular)
+            }
+            .width(min: 70, ideal: 90, max: 110)
+        } rows: {
+            ForEach(model.projects) { project in
+                DisclosureTableRow(Row(id: project.id, project: project, artifact: nil), isExpanded: Binding(
+                    get: { expanded.contains(project.id) },
+                    set: { if $0 { expanded.insert(project.id) } else { expanded.remove(project.id) } })) {
+                    ForEach(project.artifacts) { a in TableRow(Row(id: a.id, project: project, artifact: a)) }
+                }
             }
         }
+        .contextMenu(forSelectionType: String.self) { ids in
+            if !ids.isEmpty { FileContextMenu(paths: Array(ids)) }
+        } primaryAction: { ids in SystemAccess.revealInFinder(Array(ids)) }
+    }
+
+    @ViewBuilder private func nameCell(_ row: Row) -> some View {
+        if let a = row.artifact {
+            Toggle(isOn: Binding(get: { !model.excluded.contains(a.path) }, set: { on in
+                if on { model.excluded.remove(a.path) } else { model.excluded.insert(a.path) }
+            })) {
+                HStack(spacing: 6) {
+                    FileIcon(path: a.path)
+                    Text(String(a.path.dropFirst(row.project.path.count + 1))).font(.body.monospaced())
+                }
+            }
+        } else {
+            Toggle(sources: row.project.artifacts.map { a in
+                Binding(get: { !model.excluded.contains(a.path) }, set: { on in
+                    if on { model.excluded.remove(a.path) } else { model.excluded.insert(a.path) }
+                })
+            }, isOn: \.self) {
+                HStack(spacing: 6) {
+                    FileIcon(path: row.project.path)
+                    Text(row.project.name).fontWeight(.medium)
+                    if let location = relativeLocation(row.project) {
+                        Text(location).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.middle)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Where a project sits below its search folder, e.g. "clients/acme", or nil when it's at the top.
+    private func relativeLocation(_ project: ProjectArtifacts) -> String? {
+        let parent = (project.path as NSString).deletingLastPathComponent
+        guard let root = model.existingRoots.first(where: { parent == $0 || parent.hasPrefix($0 + "/") }) else {
+            return Paths.abbreviate(parent)
+        }
+        return parent == root ? nil : String(parent.dropFirst(root.count + 1))
     }
 
     private func addRoot() {
@@ -95,51 +156,6 @@ struct PurgeView: View {
             let p = Paths.abbreviate(url.path)
             if !state.settings.projectRoots.contains(p) { state.settings.projectRoots.append(p) }
         }
-    }
-
-    private func projectCard(_ project: ProjectArtifacts) -> some View {
-        let allOn = project.artifacts.allSatisfy { !model.excluded.contains($0.path) }
-        return GlassCard(padding: 0) {
-            VStack(spacing: 0) {
-                HStack(spacing: 12) {
-                    Toggle("", isOn: Binding(get: { allOn }, set: { on in
-                        for a in project.artifacts { if on { model.excluded.remove(a.path) } else { model.excluded.insert(a.path) } }
-                    }))
-                    .toggleStyle(.checkbox).labelsHidden()
-                    FileIcon(path: project.path, size: 30)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(project.name).font(.headline)
-                        Text(Paths.abbreviate(project.path)).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
-                    }
-                    Spacer()
-                    if let d = project.lastActivity {
-                        Pill(text: "Active \(d.relativeDescription)", color: d.daysAgo < state.settings.purgeRecentDays ? .green : .secondary)
-                    }
-                    Text(project.size.formattedBytes).font(.title3.weight(.semibold).monospacedDigit())
-                }
-                .padding(16)
-                ForEach(project.artifacts) { artifact in
-                    Divider().padding(.leading, 16)
-                    HStack(spacing: 12) {
-                        Toggle("", isOn: Binding(get: { !model.excluded.contains(artifact.path) }, set: { on in
-                            if on { model.excluded.remove(artifact.path) } else { model.excluded.insert(artifact.path) }
-                        }))
-                        .toggleStyle(.checkbox).labelsHidden()
-                        Image(systemName: "folder.fill").foregroundStyle(.orange)
-                        Text(artifact.name).font(.callout.monospaced())
-                        Text(artifact.kind).font(.caption).foregroundStyle(.secondary)
-                        if artifact.path.dropFirst(project.path.count + 1).contains("/") {
-                            Text(String(artifact.path.dropFirst(project.path.count + 1))).font(.caption2).foregroundStyle(.tertiary)
-                        }
-                        Spacer()
-                        Text(artifact.size.formattedBytes).font(.callout.monospacedDigit()).foregroundStyle(.secondary)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.leading, 26)
-                    .padding(.vertical, 7)
-                    .contextMenu { FileContextMenu(path: artifact.path) }
-                }
-            }
-        }
+        model.scan()
     }
 }

@@ -356,6 +356,13 @@ footer nav a:hover{color:var(--text);text-decoration:underline;text-underline-of
 .shots figcaption{font-size:14px;color:var(--text-2);padding:0 6px 4px}
 .shots figcaption b{color:var(--text);font-weight:650;margin-right:6px}
 @media (max-width:760px){.shots{grid-template-columns:1fr}}
+
+/* Demo video */
+.demo{margin:0;padding:10px;border-radius:22px}
+.demo video{display:block;width:100%;height:auto;border-radius:14px;background:#111}
+.demo figcaption{font-size:13px;color:var(--text-2);padding:10px 6px 2px;text-align:center}
+.demo figcaption a{color:inherit}
+@media (prefers-reduced-motion: reduce){.demo video{animation:none}}
 </style>
 </head>
 <body>
@@ -416,66 +423,12 @@ footer nav a:hover{color:var(--text);text-decoration:underline;text-underline-of
         <li><svg aria-hidden="true"><use href="#chk"/></svg>No subscriptions</li>
       </ul>
 
-      <div class="stage rv" role="img" aria-label="Illustration of the Scrub app window showing the Smart Scan overview: disk usage ring at 68 percent, a health score of 92, and 24.7 gigabytes of junk found.">
-        <div class="float glass" aria-hidden="true">
-          <span class="fi"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" fill="currentColor"/></svg></span>
-          <div><b>24.7 GB ready to clean</b><span>From the menu bar</span></div>
-        </div>
-        <div class="win glass" aria-hidden="true">
-          <aside class="side">
-            <div class="lights"><i></i><i></i><i></i></div>
-            <ul>
-              <li class="on"><span style="--c1:#2dd4bf;--c2:#3b82f6"></span>Smart Scan</li>
-              <li><span style="--c1:#38bdf8;--c2:#6366f1"></span>Clean</li>
-              <li><span style="--c1:#fb7185;--c2:#e11d48"></span>Uninstaller</li>
-              <li><span style="--c1:#a78bfa;--c2:#7c3aed"></span>Space Lens</li>
-              <li><span style="--c1:#fbbf24;--c2:#ea580c"></span>Optimize</li>
-              <li><span style="--c1:#4ade80;--c2:#059669"></span>Status</li>
-            </ul>
-            <div class="sec">Developer</div>
-            <ul>
-              <li><span style="--c1:#f0abfc;--c2:#c026d3"></span>Purge</li>
-              <li><span style="--c1:#94a3b8;--c2:#475569"></span>Installers</li>
-              <li><span style="--c1:#67e8f9;--c2:#0891b2"></span>History</li>
-            </ul>
-          </aside>
-          <div class="main">
-            <div class="lights"><i></i><i></i><i></i></div>
-            <div class="top">
-              <div><h3>Smart Scan</h3><p>Macintosh HD · Last scan 2 min ago</p></div>
-              <span class="scan"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" fill="currentColor"/></svg>Scan</span>
-            </div>
-            <div class="mgrid">
-              <div class="mc ringc">
-                <div class="ring">
-                  <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="50" fill="none" stroke="var(--ring-track)" stroke-width="12"/><circle class="arc" cx="60" cy="60" r="50" fill="none" stroke="url(#rg)" stroke-width="12" stroke-linecap="round" pathLength="100"/></svg>
-                  <div class="val"><b>68%</b><span>312 of 460 GB</span></div>
-                </div>
-                <div>
-                  <div class="legend"><span><i></i>Used</span><span><i class="fr"></i>148 GB free</span></div>
-                </div>
-              </div>
-              <div class="mc">
-                <h4>System health</h4>
-                <div class="big">92<small>/100</small></div>
-                <div class="segs"><i></i><i></i><i></i><i></i><i></i></div>
-                <div style="margin-top:10px"><span class="pill">Excellent</span></div>
-              </div>
-              <div class="mc">
-                <h4>CPU</h4>
-                <div class="big">18<small>%</small></div>
-                <svg class="spark" viewBox="0 0 100 36" preserveAspectRatio="none"><path d="M0 28 L10 24 L20 26 L30 18 L40 22 L50 12 L60 16 L70 9 L80 14 L90 7 L100 11 L100 36 L0 36Z" fill="url(#sf)"/><path d="M0 28 L10 24 L20 26 L30 18 L40 22 L50 12 L60 16 L70 9 L80 14 L90 7 L100 11" fill="none" stroke="url(#sg)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>
-              </div>
-              <div class="mc list">
-                <h4>Junk found · 24.7 GB</h4>
-                <div class="row"><b>Developer junk</b><em>14.2 GB</em><div class="bar"><i style="width:100%;--c1:#f0abfc;--c2:#a855f7"></i></div></div>
-                <div class="row"><b>Browser caches</b><em>4.8 GB</em><div class="bar"><i style="width:34%;--c1:#38bdf8;--c2:#6366f1"></i></div></div>
-                <div class="row"><b>System &amp; user caches</b><em>3.1 GB</em><div class="bar"><i style="width:22%;--c1:#2dd4bf;--c2:#0ea5e9"></i></div></div>
-                <div class="row"><b>Logs &amp; Trash</b><em>2.6 GB</em><div class="bar"><i style="width:18%;--c1:#fbbf24;--c2:#f97316"></i></div></div>
-              </div>
-            </div>
-          </div>
-        </div>
+      <div class="stage rv">
+        <figure class="demo glass">
+          <video src="media/scrub-demo.mp4" poster="media/scrub-demo-poster.jpg" autoplay muted loop playsinline preload="metadata"
+                 width="1280" height="800" aria-label="Screen recording of Scrub: Smart Clean, Space Lens, Applications, Project Purge, Maintenance and Activity"></video>
+          <figcaption>A real, unedited run on macOS Tahoe · <a href="media/scrub-demo.mp4">Open video</a></figcaption>
+        </figure>
       </div>
     </div>
   </section>
@@ -502,7 +455,7 @@ footer nav a:hover{color:var(--text);text-decoration:underline;text-underline-of
         </article>
         <article class="f glass rv">
           <div class="ic" style="--c1:#fb7185;--c2:#be123c"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="4.5"/><path d="M9.5 9.5l5 5M14.5 9.5l-5 5"/></svg></div>
-          <h3>Uninstaller</h3>
+          <h3>Applications</h3>
           <p>Removes apps and everything they leave behind — Application Support, Caches, Preferences, Containers, Launch Agents, Saved State, WebKit data, Cookies and more. All of it goes to the Trash.</p>
         </article>
         <article class="f glass rv">
@@ -513,7 +466,7 @@ footer nav a:hover{color:var(--text);text-decoration:underline;text-underline-of
         </article>
         <article class="f glass rv">
           <div class="ic" style="--c1:#fbbf24;--c2:#ea580c"><svg viewBox="0 0 24 24"><path d="M13 2.5L4.5 13.5H11l-1 8 8.5-11H12z"/></svg></div>
-          <h3>Optimize</h3>
+          <h3>Maintenance</h3>
           <p>Rebuild QuickLook, font and Launch Services caches, flush DNS, purge memory, thin Time Machine snapshots, remove broken launch agents and reindex Spotlight — with one admin prompt for the whole batch, or Touch ID for sudo.</p>
         </article>
         <article class="f glass w2 rv">
@@ -555,16 +508,17 @@ footer nav a:hover{color:var(--text);text-decoration:underline;text-underline-of
     <div class="wrap">
       <div class="head center rv">
         <span class="kicker">The real thing</span>
-        <h2 class="h2">Built for macOS Tahoe and later.</h2>
-        <p class="lede">Native SwiftUI with Liquid Glass throughout, captured straight from the app.</p>
+        <h2 class="h2">Native to macOS, down to the toolbar.</h2>
+        <p class="lede">Standard sidebars, tables, inspectors and forms, with Liquid Glass where macOS uses it: toolbars, the sidebar and floating controls.</p>
       </div>
       <div class="shots">
-        <figure class="glass rv wide"><img src="screenshots/overview.png" alt="Scrub Overview screen" loading="lazy" width="1292" height="892"><figcaption><b>Overview</b>Disk usage, system health and a one-click Smart Scan.</figcaption></figure>
-        <figure class="glass rv"><img src="screenshots/clean.png" alt="Scrub Smart Clean screen" loading="lazy" width="1292" height="892"><figcaption><b>Smart Clean</b>Every category and every file, reviewed before anything is removed.</figcaption></figure>
-        <figure class="glass rv"><img src="screenshots/analyze.png" alt="Scrub Space Lens screen" loading="lazy" width="1292" height="892"><figcaption><b>Space Lens</b>An interactive treemap of what's actually filling your disk.</figcaption></figure>
-        <figure class="glass rv"><img src="screenshots/uninstall.png" alt="Scrub Uninstaller screen" loading="lazy" width="1292" height="892"><figcaption><b>Uninstaller</b>Apps sized and sorted, with leftovers found for each one.</figcaption></figure>
-        <figure class="glass rv"><img src="screenshots/status.png" alt="Scrub Live Status screen" loading="lazy" width="1292" height="892"><figcaption><b>Live Status</b>CPU, memory, disk, network, GPU and battery in real time.</figcaption></figure>
-        <figure class="glass rv wide"><img src="screenshots/optimize.png" alt="Scrub Optimize screen" loading="lazy" width="1292" height="892"><figcaption><b>Optimize</b>Maintenance tasks, one password prompt, plus Touch ID for sudo.</figcaption></figure>
+        <figure class="glass rv wide"><img src="screenshots/overview.png" alt="Scrub Overview screen" loading="lazy" width="1392" height="912"><figcaption><b>Overview</b>Disk usage, system health and a one-click Smart Scan.</figcaption></figure>
+        <figure class="glass rv"><img src="screenshots/clean.png" alt="Scrub Smart Clean screen" loading="lazy" width="1392" height="912"><figcaption><b>Smart Clean</b>An outline of every category and file, with tri-state checkboxes. Nothing is removed until you confirm.</figcaption></figure>
+        <figure class="glass rv"><img src="screenshots/analyze.png" alt="Scrub Space Lens screen" loading="lazy" width="1392" height="912"><figcaption><b>Space Lens</b>An interactive treemap of what's actually filling your disk.</figcaption></figure>
+        <figure class="glass rv"><img src="screenshots/uninstall.png" alt="Scrub Applications screen" loading="lazy" width="1392" height="912"><figcaption><b>Applications</b>Every app sized and sorted, with the files it leaves behind listed in the inspector.</figcaption></figure>
+        <figure class="glass rv"><img src="screenshots/status.png" alt="Scrub Activity screen" loading="lazy" width="1392" height="912"><figcaption><b>Activity</b>CPU, memory, disk, network, GPU and battery in real time, plus a process list.</figcaption></figure>
+        <figure class="glass rv"><img src="screenshots/optimize.png" alt="Scrub Maintenance screen" loading="lazy" width="1392" height="912"><figcaption><b>Maintenance</b>Upkeep tasks with one password prompt, plus Touch ID for sudo.</figcaption></figure>
+        <figure class="glass rv"><img src="screenshots/purge.png" alt="Scrub Project Purge screen" loading="lazy" width="1392" height="912"><figcaption><b>Project Purge</b>node_modules, target, .build and other build output from old projects.</figcaption></figure>
       </div>
     </div>
   </section>
@@ -680,7 +634,7 @@ footer nav a:hover{color:var(--text);text-decoration:underline;text-underline-of
           </div>
         </details>
         <details class="glass rv">
-          <summary>Why does Optimize ask for my password?<i aria-hidden="true"><svg viewBox="0 0 14 14"><path d="M7 1.5v11M1.5 7h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></i></summary>
+          <summary>Why does Maintenance ask for my password?<i aria-hidden="true"><svg viewBox="0 0 14 14"><path d="M7 1.5v11M1.5 7h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></i></summary>
           <div class="a">
             <p>Some maintenance tasks — like flushing DNS, rebuilding Launch Services or thinning Time Machine snapshots — need administrator rights. Scrub batches them so you only see one prompt per run, and you can turn on Touch ID for sudo to approve with your fingerprint.</p>
           </div>

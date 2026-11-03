@@ -2,6 +2,7 @@ import SwiftUI
 
 struct UninstallView: View {
     @Environment(AppState.self) private var state
+    @State private var showInspector = true
     @State private var confirm: ConfirmKind?
 
     enum ConfirmKind: Identifiable { case uninstall, reset; var id: Self { self } }
@@ -10,256 +11,230 @@ struct UninstallView: View {
 
     var body: some View {
         @Bindable var model = model
-        VStack(alignment: .leading, spacing: 18) {
-            SectionHeader(section: .uninstall) {
-                Picker("Sort", selection: $model.sort) {
-                    ForEach(UninstallModel.Sort.allCases) { Text($0.rawValue).tag($0) }
+        Table(model.visibleApps, selection: $model.selection, sortOrder: $model.sortOrder) {
+            TableColumn("Name", value: \.name) { app in
+                HStack(spacing: 8) {
+                    FileIcon(path: app.path, size: 20)
+                    Text(app.name)
+                    if app.isAppStore {
+                        Image(systemName: "bag").font(.caption).foregroundStyle(.tertiary).help("From the App Store")
+                    }
                 }
-                .pickerStyle(.segmented)
-                .frame(width: 240)
-                .labelsHidden()
             }
-            if let result = model.lastResult {
-                ResultBanner(title: "Removed \(result.count) app\(result.count == 1 ? "" : "s")",
-                             message: "\(result.bytes.formattedBytes) moved to the Trash.",
-                             colors: AppSection.uninstall.colors) { model.lastResult = nil }
+            .width(min: 200, ideal: 280)
+            TableColumn("Version", value: \.version) { app in
+                Text(app.version).foregroundStyle(.secondary).monospacedDigit()
             }
-            HStack(alignment: .top, spacing: 18) {
-                appList
-                    .frame(width: 400)
-                detail
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .width(min: 60, ideal: 90, max: 140)
+            TableColumn("Last Opened", value: \.lastUsedSort) { app in
+                Group {
+                    if let d = app.lastUsed { Text(d, format: .relative(presentation: .named)) } else { Text("Never") }
+                }
+                .foregroundStyle(.secondary)
+            }
+            .width(min: 90, ideal: 120, max: 160)
+            TableColumn("Size", value: \.sizeSort) { app in
+                if let size = app.size { SizeText(bytes: size) } else { ProgressView().controlSize(.mini).frame(maxWidth: .infinity, alignment: .trailing) }
+            }
+            .width(min: 70, ideal: 90, max: 120)
+        }
+        .contextMenu(forSelectionType: String.self) { ids in
+            if !ids.isEmpty {
+                Button("Show in Finder") { SystemAccess.revealInFinder(Array(ids)) }
+                Divider()
+                Button("Reset App Data…") { model.selection = ids; loadSelection(); confirm = .reset }
+                Button(ids.count == 1 ? "Uninstall…" : "Uninstall \(ids.count) Apps…", role: .destructive) {
+                    model.selection = ids; loadSelection(); confirm = .uninstall
+                }
+            }
+        } primaryAction: { ids in
+            SystemAccess.revealInFinder(Array(ids))
+        }
+        .searchable(text: $model.search, placement: .toolbar, prompt: "Search Apps")
+        .navigationTitle("Applications")
+        .navigationSubtitle(model.isLoading ? "Loading…" : "\(model.apps.count) apps · \(model.apps.reduce(0) { $0 + ($1.size ?? 0) }.formattedBytes)")
+        .inspector(isPresented: $showInspector) {
+            AppInspector(confirm: $confirm)
+                .inspectorColumnWidth(min: 300, ideal: 340, max: 440)
+        }
+        .toolbar {
+            ToolbarItem {
+                Button { showInspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.trailing") }
+                    .help(showInspector ? "Hide Inspector" : "Show Inspector")
             }
         }
-        .padding(.horizontal, 32)
-        .padding(.top, 12)
-        .padding(.bottom, 24)
+        .onChange(of: model.selection) { loadSelection() }
         .onAppear { if model.apps.isEmpty { model.load() } }
-        .confirmationDialog(confirm == .reset ? "Reset app data?" : "Uninstall \(model.selectedApps.count == 1 ? model.selectedApps[0].name : "\(model.selectedApps.count) apps")?",
-                            isPresented: Binding(get: { confirm != nil }, set: { if !$0 { confirm = nil } }),
+        .confirmationDialog(confirmTitle, isPresented: Binding(get: { confirm != nil }, set: { if !$0 { confirm = nil } }),
                             presenting: confirm) { kind in
             Button(kind == .reset ? "Reset" : "Move to Trash", role: .destructive) {
                 model.removeSelected(keepApp: kind == .reset)
             }
         } message: { kind in
             Text(kind == .reset
-                 ? "The app stays installed but its settings, caches and data are moved to the Trash, like a fresh install."
-                 : "The app and the selected leftovers are moved to the Trash. Running apps are quit first.")
+                 ? "The app stays installed, but its settings, caches and data are moved to the Trash."
+                 : "The app and its selected files are moved to the Trash. Running apps are quit first.")
         }
     }
 
-    // MARK: List
-
-    private var appList: some View {
-        @Bindable var model = model
-        return VStack(spacing: 0) {
-            HStack {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("Search \(model.apps.count) apps", text: $model.search)
-                    .textFieldStyle(.plain)
-                if model.isLoading { ProgressView().controlSize(.small) }
-            }
-            .padding(12)
-            .glassEffect(.regular, in: .capsule)
-            .padding(12)
-
-            ScrollView {
-                LazyVStack(spacing: 2) {
-                    ForEach(model.visibleApps) { app in
-                        appRow(app)
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.bottom, 8)
-            }
-        }
-        .glassEffect(.regular, in: .rect(cornerRadius: 24))
-    }
-
-    private func appRow(_ app: InstalledApp) -> some View {
-        let selected = model.selection.contains(app.path)
-        return HStack(spacing: 12) {
-            Toggle("", isOn: Binding(get: { selected }, set: { on in
-                if on { model.selection.insert(app.path); model.loadLeftovers(for: app) } else { model.selection.remove(app.path) }
-            }))
-            .toggleStyle(.checkbox)
-            .labelsHidden()
-            FileIcon(path: app.path, size: 34)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(app.name).font(.body.weight(.medium)).lineLimit(1)
-                Text(app.lastUsed.map { "Used \($0.relativeDescription)" } ?? "Never opened")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Spacer()
-            if let size = model.sizes[app.path] {
-                Text(size.formattedBytes).font(.callout.monospacedDigit()).foregroundStyle(.secondary)
-            } else {
-                ProgressView().controlSize(.mini)
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(selected ? AppSection.uninstall.tint.opacity(0.16) : .clear, in: .rect(cornerRadius: 12))
-        .contentShape(.rect)
-        .onTapGesture {
-            // Plain click focuses one app; ⌘-click adds to the selection.
-            if NSEvent.modifierFlags.contains(.command) {
-                if selected { model.selection.remove(app.path) } else { model.selection.insert(app.path) }
-            } else {
-                model.selection = [app.path]
-            }
-            model.loadLeftovers(for: app)
-        }
-        .contextMenu {
-            Button("Reveal in Finder", systemImage: "folder") { SystemAccess.revealInFinder([app.path]) }
-            Button("Reset App Data…", systemImage: "arrow.counterclockwise") {
-                model.selection = [app.path]; model.loadLeftovers(for: app); confirm = .reset
-            }
-            Button("Uninstall…", systemImage: "trash", role: .destructive) {
-                model.selection = [app.path]; model.loadLeftovers(for: app); confirm = .uninstall
-            }
-        }
-    }
-
-    // MARK: Detail
-
-    @ViewBuilder private var detail: some View {
+    private var confirmTitle: String {
         let apps = model.selectedApps
-        if model.isRemoving {
-            GlassCard {
-                VStack(spacing: 16) {
-                    ScanningOrb(colors: AppSection.uninstall.colors, size: 140)
-                    Text(model.removalStatus).font(.headline)
+        let name = apps.count == 1 ? "“\(apps[0].name)”" : "\(apps.count) apps"
+        return confirm == .reset ? "Reset \(name)?" : "Uninstall \(name)?"
+    }
+
+    private func loadSelection() {
+        for app in model.selectedApps { model.loadLeftovers(for: app) }
+    }
+}
+
+private struct AppInspector: View {
+    @Environment(AppState.self) private var state
+    @Binding var confirm: UninstallView.ConfirmKind?
+
+    private var model: UninstallModel { state.uninstall }
+
+    var body: some View {
+        let apps = model.selectedApps
+        Group {
+            if model.isRemoving {
+                ScanningPlaceholder(title: "Removing", symbol: "trash", detail: model.removalStatus)
+            } else if let result = model.lastResult, apps.isEmpty {
+                ContentUnavailableView {
+                    Label("Moved to Trash", systemImage: "checkmark.circle")
+                } description: {
+                    Text("\(result.count) app\(result.count == 1 ? "" : "s") and \(result.bytes.formattedBytes) of files.")
                 }
-                .frame(maxWidth: .infinity, minHeight: 300)
+            } else if apps.isEmpty {
+                ContentUnavailableView("No App Selected", systemImage: "app.dashed",
+                                       description: Text("Select an app to see everything that will be removed with it."))
+            } else if apps.count == 1 {
+                detail(apps[0])
+            } else {
+                multi(apps)
             }
-        } else if apps.isEmpty {
-            GlassCard {
-                EmptyState(symbol: "xmark.app.fill", title: "Choose an app",
-                           message: "Scrub finds the preferences, caches, containers and launch agents each app leaves behind. ⌘-click to select several.",
-                           colors: AppSection.uninstall.colors)
-                    .frame(maxWidth: .infinity, minHeight: 360)
-            }
-        } else if apps.count == 1 {
-            singleDetail(apps[0])
-        } else {
-            multiDetail(apps)
         }
     }
 
-    private func singleDetail(_ app: InstalledApp) -> some View {
+    private func detail(_ app: InstalledApp) -> some View {
         let leftovers = model.leftovers[app.path] ?? []
-        return GlassCard(padding: 0) {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 18) {
-                    FileIcon(path: app.path, size: 84)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(app.name).font(.system(size: 26, weight: .bold, design: .rounded))
-                        Text("\(app.version.isEmpty ? "" : "Version \(app.version) · ")\(app.bundleID)")
-                            .font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
-                        HStack(spacing: 6) {
-                            Pill(text: app.location, symbol: "folder")
-                            if app.isAppStore { Pill(text: "App Store", color: .blue, symbol: "bag.fill") }
-                            if app.isRunning { Pill(text: "Running", color: .green, symbol: "play.fill") }
+        return VStack(spacing: 0) {
+            Form {
+                Section {
+                    HStack(spacing: 12) {
+                        FileIcon(path: app.path, size: 48)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(app.name).font(.headline)
+                            Text(app.version.isEmpty ? app.bundleID : "Version \(app.version)")
+                                .font(.callout).foregroundStyle(.secondary)
                         }
                     }
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 0) {
-                        let parts = model.totalSize(of: app).byteParts
-                        BigNumber(value: parts.0, unit: parts.1, size: 32)
-                        Text("total to remove").font(.caption).foregroundStyle(.secondary)
+                    LabeledContent("Identifier") { Text(app.bundleID).textSelection(.enabled) }
+                    LabeledContent("Location", value: app.location)
+                    if let d = app.lastUsed { LabeledContent("Last opened") { Text(d, format: .relative(presentation: .named)) } }
+                }
+                Section {
+                    LeftoverToggle(path: app.path, kind: "Application", size: app.size ?? 0, admin: false, locked: true)
+                    ForEach(leftovers) { l in
+                        LeftoverToggle(path: l.path, kind: l.kind, size: l.size, admin: l.requiresAdmin, locked: false)
+                    }
+                } header: {
+                    HStack {
+                        Text("Files to Remove")
+                        if model.loadingLeftovers.contains(app.path) { ProgressView().controlSize(.mini) }
+                    }
+                } footer: {
+                    if !state.hasFullDiskAccess {
+                        Text("Sandboxed app data is only found with Full Disk Access.").foregroundStyle(.secondary)
                     }
                 }
-                .padding(22)
-
-                Divider()
-                HStack {
-                    Text("Leftovers").font(.headline)
-                    if model.loadingLeftovers.contains(app.path) { ProgressView().controlSize(.small) }
-                    Spacer()
-                    Text("\(leftovers.count) found").font(.callout).foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 22)
-                .padding(.vertical, 12)
-
-                ScrollView {
-                    VStack(spacing: 0) {
-                        leftoverRow(path: app.path, kind: "Application", size: model.sizes[app.path] ?? 0, admin: false, locked: true)
-                        ForEach(leftovers) { l in
-                            leftoverRow(path: l.path, kind: l.kind, size: l.size, admin: l.requiresAdmin, locked: false)
-                        }
-                    }
-                    .padding(.horizontal, 14)
-                }
-                .frame(maxHeight: .infinity)
-
-                Divider()
-                HStack {
-                    Button("Reset App Data…") { confirm = .reset }
-                        .buttonStyle(.glass)
-                        .disabled(leftovers.isEmpty)
-                    Spacer()
-                    Button {
-                        confirm = .uninstall
-                    } label: {
-                        Label("Uninstall", systemImage: "trash.fill").padding(.horizontal, 10)
-                    }
-                    .buttonStyle(.glassProminent)
-                    .tint(AppSection.uninstall.tint)
-                    .controlSize(.large)
-                }
-                .padding(16)
             }
+            .formStyle(.grouped)
+            footer(total: model.totalSize(of: app), canReset: !leftovers.isEmpty)
         }
     }
 
-    private func leftoverRow(path: String, kind: String, size: Int64, admin: Bool, locked: Bool) -> some View {
-        HStack(spacing: 10) {
-            Toggle("", isOn: Binding(
-                get: { locked || !model.excludedLeftovers.contains(path) },
-                set: { if $0 { model.excludedLeftovers.remove(path) } else { model.excludedLeftovers.insert(path) } }
-            ))
-            .toggleStyle(.checkbox)
-            .labelsHidden()
-            .disabled(locked)
-            FileIcon(path: path, size: 22)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(kind).font(.callout.weight(.medium))
-                Text(Paths.abbreviate(path)).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+    private func multi(_ apps: [InstalledApp]) -> some View {
+        VStack(spacing: 0) {
+            Form {
+                Section("\(apps.count) Apps Selected") {
+                    ForEach(apps) { app in
+                        LabeledContent {
+                            Text(model.totalSize(of: app).formattedBytes).monospacedDigit()
+                        } label: {
+                            HStack { FileIcon(path: app.path, size: 18); Text(app.name) }
+                        }
+                    }
+                }
             }
-            Spacer()
-            if admin { Image(systemName: "lock.fill").font(.caption).foregroundStyle(.orange).help("Requires administrator approval") }
-            Text(size.formattedBytes).font(.callout.monospacedDigit()).foregroundStyle(.secondary)
+            .formStyle(.grouped)
+            footer(total: model.selectionTotal, canReset: true)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+    }
+
+    private func footer(total: Int64, canReset: Bool) -> some View {
+        VStack(spacing: 10) {
+            HStack {
+                Text("Total").foregroundStyle(.secondary)
+                Spacer()
+                Text(total.formattedBytes).fontWeight(.semibold).monospacedDigit()
+            }
+            HStack {
+                Button("Reset…") { confirm = .reset }
+                    .disabled(!canReset)
+                    .help("Remove the app's data but keep the app")
+                Spacer()
+                Button("Uninstall…") { confirm = .uninstall }
+                    .buttonStyle(.glassProminent)
+                    .tint(.red)
+            }
+        }
+        .padding(16)
+    }
+}
+
+private struct LeftoverToggle: View {
+    @Environment(AppState.self) private var state
+    let path: String
+    let kind: String
+    let size: Int64
+    let admin: Bool
+    let locked: Bool
+
+    var body: some View {
+        let model = state.uninstall
+        Toggle(isOn: Binding(
+            get: { locked || !model.excludedLeftovers.contains(path) },
+            set: { if $0 { model.excludedLeftovers.remove(path) } else { model.excludedLeftovers.insert(path) } }
+        )) {
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 4) {
+                    Text(kind)
+                    if admin { Image(systemName: "lock").font(.caption2).foregroundStyle(.secondary).help("Needs administrator approval") }
+                }
+                Text(Paths.abbreviate(path))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+        }
+        .toggleStyle(InspectorCheckboxStyle(trailing: size > 0 ? size.formattedBytes : "—"))
+        .disabled(locked)
         .contextMenu { FileContextMenu(path: path) }
     }
+}
 
-    private func multiDetail(_ apps: [InstalledApp]) -> some View {
-        GlassCard {
-            VStack(alignment: .leading, spacing: 18) {
-                HStack(spacing: -14) {
-                    ForEach(apps.prefix(8)) { FileIcon(path: $0.path, size: 64) }
-                }
-                Text("\(apps.count) apps selected").font(.system(size: 26, weight: .bold, design: .rounded))
-                Text(apps.map(\.name).joined(separator: ", ")).foregroundStyle(.secondary).lineLimit(3)
-                HStack(alignment: .firstTextBaseline) {
-                    let parts = model.selectionTotal.byteParts
-                    BigNumber(value: parts.0, unit: parts.1, size: 36)
-                    Text("including leftovers").foregroundStyle(.secondary)
-                }
-                HStack {
-                    Button("Clear Selection") { model.selection = [] }.buttonStyle(.glass)
-                    Spacer()
-                    Button { confirm = .uninstall } label: {
-                        Label("Uninstall \(apps.count) Apps", systemImage: "trash.fill").padding(.horizontal, 10)
-                    }
-                    .buttonStyle(.glassProminent)
-                    .tint(AppSection.uninstall.tint)
-                    .controlSize(.large)
-                }
-            }
+/// A checkbox row with a trailing value, the way Finder's Get Info lists items.
+struct InspectorCheckboxStyle: ToggleStyle {
+    let trailing: String
+
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 8) {
+            Toggle("", isOn: configuration.$isOn).toggleStyle(.checkbox).labelsHidden()
+            configuration.label
+            Spacer(minLength: 8)
+            Text(trailing).foregroundStyle(.secondary).monospacedDigit()
         }
     }
 }

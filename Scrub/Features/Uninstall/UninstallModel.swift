@@ -3,16 +3,10 @@ import Observation
 
 @Observable
 final class UninstallModel {
-    enum Sort: String, CaseIterable, Identifiable {
-        case name = "Name", size = "Size", lastUsed = "Last Used"
-        var id: String { rawValue }
-    }
-
     var apps: [InstalledApp] = []
-    var sizes: [String: Int64] = [:]
     var isLoading = false
     var search = ""
-    var sort: Sort = .size
+    var sortOrder = [KeyPathComparator(\InstalledApp.sizeSort, order: .reverse)]
     var selection: Set<String> = []
 
     var leftovers: [String: [Leftover]] = [:]
@@ -27,17 +21,13 @@ final class UninstallModel {
         let filtered = search.isEmpty ? apps : apps.filter {
             $0.name.localizedCaseInsensitiveContains(search) || $0.bundleID.localizedCaseInsensitiveContains(search)
         }
-        switch sort {
-        case .name: return filtered
-        case .size: return filtered.sorted { (sizes[$0.path] ?? 0) > (sizes[$1.path] ?? 0) }
-        case .lastUsed: return filtered.sorted { ($0.lastUsed ?? .distantPast) < ($1.lastUsed ?? .distantPast) }
-        }
+        return filtered.sorted(using: sortOrder)
     }
 
     var selectedApps: [InstalledApp] { apps.filter { selection.contains($0.path) } }
 
     func totalSize(of app: InstalledApp) -> Int64 {
-        (sizes[app.path] ?? 0) + (leftovers[app.path] ?? []).filter { !excludedLeftovers.contains($0.path) }.reduce(0) { $0 + $1.size }
+        (app.size ?? 0) + (leftovers[app.path] ?? []).filter { !excludedLeftovers.contains($0.path) }.reduce(0) { $0 + $1.size }
     }
 
     var selectionTotal: Int64 { selectedApps.reduce(0) { $0 + totalSize(of: $1) } }
@@ -51,13 +41,12 @@ final class UninstallModel {
                 self?.apps = apps
                 self?.isLoading = false
             }
-            let lock = NSLock()
-            var sizes: [String: Int64] = [:]
-            DispatchQueue.concurrentPerform(iterations: apps.count) { i in
-                let s = FileSizer.allocatedSize(atPath: apps[i].path)
-                lock.lock(); sizes[apps[i].path] = s; lock.unlock()
+            // All bundles are measured together so the walk spreads across every core.
+            let sizes = DiskWalker.measure(apps.map(\.path))
+            await MainActor.run {
+                guard let self else { return }
+                self.apps = self.apps.map { var a = $0; a.size = sizes[a.path]?.size; return a }
             }
-            await MainActor.run { self?.sizes = sizes }
         }
     }
 
@@ -104,6 +93,7 @@ final class UninstallModel {
                 if !keepApp { Self.removeFromDock(app) }
             }
             let final = report
+            LeftoverIndex.shared.invalidate()
             await MainActor.run {
                 guard let self else { return }
                 self.isRemoving = false

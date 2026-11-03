@@ -9,7 +9,9 @@
 /* Begin PBXBuildFile section */
 		05198D07D61FC639F71C3884 /* HistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0416BB9B176F75348266677 /* HistoryStore.swift */; };
 		07DDA827449F2C83FF707CA9 /* InstallersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFC6F0CD39B85283B4F51E02 /* InstallersView.swift */; };
+		0C66FC5AEB9EF67C260F73CE /* DiskWalker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5454763E9DDC44291C0F1D04 /* DiskWalker.swift */; };
 		0CEE7CE6C720165913EB1175 /* Shell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08C5D7C9120D3FBDAD001029 /* Shell.swift */; };
+		17F7AE61C32ED51DFDD04166 /* DemoDirector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1229A516BF04571EFBDD8309 /* DemoDirector.swift */; };
 		1A1A8DBB67A4EE77326AAFED /* Remover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34F97AF04A627AD0CE346994 /* Remover.swift */; };
 		36FC154D3AB6512E6194AE36 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A81042328E359081A16DC6 /* HistoryView.swift */; };
 		3DBF7F2A572C0BAF900965AB /* PurgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBAF0A53D69FDBFC35A9FCF1 /* PurgeView.swift */; };
@@ -17,6 +19,7 @@
 		404480EF43E8A5B3A6F6E148 /* SystemAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50D29BF692E371B9903B243 /* SystemAccess.swift */; };
 		4C02B10799AA57CCDB15721D /* SafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F9B85FAF1305915AB57FF92 /* SafetyTests.swift */; };
 		5C0E021FFE7D2EDEC417F19C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADFA3C9FD4E05F6B674E5A96 /* ContentView.swift */; };
+		5D74E9F36E155F03DBF51F78 /* MacInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9B967C58451009B9AC96060 /* MacInfo.swift */; };
 		6E3715598BDE0AD38D5A72AB /* AnalyzeModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 439A79F8D2347767C38A2642 /* AnalyzeModel.swift */; };
 		7C552C164A96F73E57ECD861 /* UninstallModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F233D6FC8E8D521F69D910BF /* UninstallModel.swift */; };
 		8264FFE4DC238A085720F53B /* Paths.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77F2EEA0319A3F58F4EB0903 /* Paths.swift */; };
@@ -61,6 +64,7 @@
 		05124FE45C5D1881539CB7BB /* AppSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSection.swift; sourceTree = "<group>"; };
 		08C5D7C9120D3FBDAD001029 /* Shell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell.swift; sourceTree = "<group>"; };
 		116CB8DD9BB561F146AF8E3B /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		1229A516BF04571EFBDD8309 /* DemoDirector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoDirector.swift; sourceTree = "<group>"; };
 		15A3C083F046B720B8782EF3 /* ScrubApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrubApp.swift; sourceTree = "<group>"; };
 		17836AD12E36FF6C0AC99577 /* CleanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CleanView.swift; sourceTree = "<group>"; };
 		28FA84B7AD4297868284DCCB /* OptimizeModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptimizeModel.swift; sourceTree = "<group>"; };
@@ -76,6 +80,7 @@
 		48EA084C4BFDAC1BEBB80119 /* AnalyzeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyzeView.swift; sourceTree = "<group>"; };
 		4C1420AC5BCCDBFCCE1682F5 /* PurgeModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurgeModel.swift; sourceTree = "<group>"; };
 		4E3AA331508976F4B10B6A87 /* PathGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PathGuard.swift; sourceTree = "<group>"; };
+		5454763E9DDC44291C0F1D04 /* DiskWalker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskWalker.swift; sourceTree = "<group>"; };
 		5530948B147162E79099AF60 /* StatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusView.swift; sourceTree = "<group>"; };
 		61967A762B4AE71519E69EE3 /* OptimizeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptimizeView.swift; sourceTree = "<group>"; };
 		77F2EEA0319A3F58F4EB0903 /* Paths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Paths.swift; sourceTree = "<group>"; };
@@ -84,6 +89,7 @@
 		97384FBD9EA0A244F3BD5048 /* CleanCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CleanCatalog.swift; sourceTree = "<group>"; };
 		9F75E99C67147621957EDC8A /* InstallersModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallersModel.swift; sourceTree = "<group>"; };
 		A0416BB9B176F75348266677 /* HistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryStore.swift; sourceTree = "<group>"; };
+		A9B967C58451009B9AC96060 /* MacInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacInfo.swift; sourceTree = "<group>"; };
 		ADFA3C9FD4E05F6B674E5A96 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		B19E03D8790B04DDCBD80064 /* CleanModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CleanModel.swift; sourceTree = "<group>"; };
 		B68A1C221A689FCC95E7A8EE /* FileSizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSizer.swift; sourceTree = "<group>"; };
@@ -151,6 +157,7 @@
 			children = (
 				2E6BEB8AD6DAB2A5556C445F /* AppState.swift */,
 				ADFA3C9FD4E05F6B674E5A96 /* ContentView.swift */,
+				1229A516BF04571EFBDD8309 /* DemoDirector.swift */,
 				15A3C083F046B720B8782EF3 /* ScrubApp.swift */,
 			);
 			path = App;
@@ -244,8 +251,10 @@
 			isa = PBXGroup;
 			children = (
 				116CB8DD9BB561F146AF8E3B /* AppSettings.swift */,
+				5454763E9DDC44291C0F1D04 /* DiskWalker.swift */,
 				B68A1C221A689FCC95E7A8EE /* FileSizer.swift */,
 				A0416BB9B176F75348266677 /* HistoryStore.swift */,
+				A9B967C58451009B9AC96060 /* MacInfo.swift */,
 				4E3AA331508976F4B10B6A87 /* PathGuard.swift */,
 				77F2EEA0319A3F58F4EB0903 /* Paths.swift */,
 				34F97AF04A627AD0CE346994 /* Remover.swift */,
@@ -404,12 +413,15 @@
 				F61906EDAE024984A36E54CA /* CleanView.swift in Sources */,
 				C03C66CBF6813ECA16A59E7B /* Components.swift in Sources */,
 				5C0E021FFE7D2EDEC417F19C /* ContentView.swift in Sources */,
+				17F7AE61C32ED51DFDD04166 /* DemoDirector.swift in Sources */,
 				A8C2692C979F37D59BA4B589 /* DiskScanner.swift in Sources */,
+				0C66FC5AEB9EF67C260F73CE /* DiskWalker.swift in Sources */,
 				F5C81D072A6100756DC1DF56 /* FileSizer.swift in Sources */,
 				05198D07D61FC639F71C3884 /* HistoryStore.swift in Sources */,
 				36FC154D3AB6512E6194AE36 /* HistoryView.swift in Sources */,
 				82A970602BD8F47DFEB9CA64 /* InstallersModel.swift in Sources */,
 				07DDA827449F2C83FF707CA9 /* InstallersView.swift in Sources */,
+				5D74E9F36E155F03DBF51F78 /* MacInfo.swift in Sources */,
 				92F8DAAD2881E8B7DA8714B1 /* MenuBarView.swift in Sources */,
 				B28A383E91539C856E7E09BA /* OptimizeModel.swift in Sources */,
 				C32FBC1AEED26CD15AE3754F /* OptimizeView.swift in Sources */,
@@ -485,7 +497,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = NO;
@@ -506,7 +518,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.1.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -571,7 +583,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = NO;
@@ -586,7 +598,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.1.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";

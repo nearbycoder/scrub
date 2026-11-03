@@ -86,18 +86,14 @@ final class PurgeModel {
                     found[project, default: []].append(BuildArtifact(path: dir, kind: kind, size: 0))
                 }
             }
-            // Measure sizes in parallel; artifact folders are often huge.
+            // Skip anything git tracks, then measure every artifact in one parallel walk.
             let flat = found.flatMap { project, list in list.map { (project, $0) } }
+                .filter { !Self.isTrackedByGit($0.1.path, project: $0.0) }
+            let measured = DiskWalker.measure(flat.map(\.1.path))
             var sized: [String: [BuildArtifact]] = [:]
-            let lock = NSLock()
-            DispatchQueue.concurrentPerform(iterations: flat.count) { i in
-                let (project, artifact) = flat[i]
-                if Self.isTrackedByGit(artifact.path, project: project) { return }
-                let size = FileSizer.allocatedSize(atPath: artifact.path)
-                guard size > 0 else { return }
-                lock.lock()
+            for (project, artifact) in flat {
+                guard let size = measured[artifact.path]?.size, size > 0 else { continue }
                 sized[project, default: []].append(BuildArtifact(path: artifact.path, kind: artifact.kind, size: size))
-                lock.unlock()
             }
             let cutoff = Date().addingTimeInterval(-Double(recentDays) * 86_400)
             var result: [ProjectArtifacts] = []

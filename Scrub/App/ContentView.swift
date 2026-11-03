@@ -8,17 +8,12 @@ struct ContentView: View {
         @Bindable var state = state
         NavigationSplitView {
             Sidebar(selection: $state.section)
-                .navigationSplitViewColumnWidth(min: 210, ideal: 230, max: 280)
+                .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 260)
         } detail: {
-            ZStack {
-                SceneBackground(colors: state.section.colors)
-                detail
-                    .id(state.section)
-                    .transition(.opacity.combined(with: .scale(scale: 0.985)))
-            }
-            .animation(.smooth(duration: 0.35), value: state.section)
+            detail
         }
-        .onAppear { showOnboarding = !state.settings.hasCompletedOnboarding }
+        .overlay(alignment: .bottom) { DemoCaption() }
+        .onAppear { showOnboarding = !state.settings.hasCompletedOnboarding && !DemoDirector.isActive }
         .sheet(isPresented: $showOnboarding) {
             OnboardingView { state.settings.hasCompletedOnboarding = true; showOnboarding = false }
                 .environment(state)
@@ -46,18 +41,16 @@ struct Sidebar: View {
 
     var body: some View {
         List(selection: $selection) {
-            ForEach(AppSection.groups, id: \.0) { group in
+            ForEach(Array(AppSection.groups.enumerated()), id: \.offset) { _, group in
                 Section {
                     ForEach(group.1) { section in
                         NavigationLink(value: section) {
-                            Label {
-                                HStack {
-                                    Text(section.title)
-                                    Spacer()
-                                    badge(for: section)
+                            HStack {
+                                Label(section.title, systemImage: section.symbol)
+                                Spacer(minLength: 4)
+                                if let badge = badge(for: section) {
+                                    badge.font(.caption).foregroundStyle(.secondary).monospacedDigit()
                                 }
-                            } icon: {
-                                IconBadge(symbol: section.symbol, colors: section.colors, size: 22)
                             }
                         }
                     }
@@ -67,44 +60,50 @@ struct Sidebar: View {
             }
         }
         .listStyle(.sidebar)
-        .safeAreaInset(edge: .bottom) { footer }
+        .safeAreaInset(edge: .bottom, spacing: 0) { StorageFooter() }
     }
 
-    @ViewBuilder private func badge(for section: AppSection) -> some View {
+    private func badge(for section: AppSection) -> Text? {
         switch section {
         case .clean where state.clean.phase == .ready && state.clean.totalSelected > 0:
-            Text(state.clean.totalSelected.formattedBytes).font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
-        case .status:
-            Text(state.monitor.cpuUsage.percent).font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+            Text(state.clean.totalSelected.formattedBytes)
+        case .purge where state.purge.selectedSize > 0:
+            Text(state.purge.selectedSize.formattedBytes)
         default:
-            EmptyView()
+            nil
         }
     }
+}
 
-    private var footer: some View {
+/// Startup disk usage pinned to the bottom of the sidebar. Reads only disk values, so it isn't
+/// redrawn by the faster CPU and memory samples.
+private struct StorageFooter: View {
+    @Environment(AppState.self) private var state
+
+    var body: some View {
+        let m = state.monitor
         VStack(alignment: .leading, spacing: 8) {
             if !state.hasFullDiskAccess {
                 Button {
                     SystemAccess.openFullDiskAccessSettings()
                 } label: {
-                    Label("Grant Full Disk Access", systemImage: "lock.open.fill")
-                        .font(.caption.weight(.semibold))
-                        .frame(maxWidth: .infinity)
+                    Label("Allow Full Disk Access…", systemImage: "lock.shield")
+                        .font(.caption)
                 }
-                .buttonStyle(.glassProminent)
-                .tint(.orange)
+                .buttonStyle(.link)
+                .foregroundStyle(.orange)
             }
-            HStack(spacing: 8) {
-                Image(systemName: "internaldrive")
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("\(state.monitor.diskFree.formattedBytes) free")
-                        .font(.caption.weight(.semibold))
-                    MeterBar(fraction: state.monitor.diskFraction, colors: AppSection.analyze.colors, height: 5)
-                }
+            HStack {
+                Text("Macintosh HD").font(.caption.weight(.medium))
+                Spacer()
+                Text("\(m.diskFree.formattedBytes) free").font(.caption).foregroundStyle(.secondary).monospacedDigit()
             }
-            .foregroundStyle(.secondary)
+            ProgressView(value: m.diskFraction)
+                .progressViewStyle(.linear)
+                .tint(m.diskFraction > 0.9 ? .orange : .accentColor)
         }
-        .padding(14)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 }
 
@@ -113,82 +112,56 @@ struct OnboardingView: View {
     var onFinish: () -> Void
 
     var body: some View {
-        VStack(spacing: 22) {
-            IconBadge(symbol: "bubbles.and.sparkles.fill", colors: AppSection.clean.colors, size: 88)
-                .padding(.top, 10)
-            VStack(spacing: 6) {
-                Text("Welcome to Scrub").font(.system(size: 30, weight: .bold, design: .rounded))
-                Text("A free, open-source cleaner that keeps your Mac fast, tidy and private.")
+        VStack(spacing: 0) {
+            VStack(spacing: 10) {
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
+                    .frame(width: 88, height: 88)
+                Text("Welcome to Scrub").font(.title.weight(.semibold))
+                Text("A free, open-source way to keep your Mac clean and fast.")
                     .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
             }
-            VStack(alignment: .leading, spacing: 14) {
-                row("eye.fill", "Preview everything", "Nothing is removed until you review it and press Clean.")
-                row("lock.shield.fill", "Safe by design", "System files, documents and running apps are always skipped.")
-                row("arrow.uturn.backward.circle.fill", "Undo-friendly", "Apps, installers and leftovers go to the Trash first.")
-            }
-            .padding(18)
-            .glassEffect(.regular, in: .rect(cornerRadius: 20))
+            .padding(.top, 28)
+            .padding(.bottom, 24)
 
-            GlassCard(tint: .orange) {
-                HStack(spacing: 14) {
-                    Image(systemName: state.hasFullDiskAccess ? "checkmark.seal.fill" : "lock.open.fill")
-                        .font(.title)
-                        .foregroundStyle(state.hasFullDiskAccess ? .green : .orange)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(state.hasFullDiskAccess ? "Full Disk Access granted" : "Allow Full Disk Access").font(.headline)
-                        Text("Lets Scrub measure Safari, Mail and app container caches. Add Scrub in System Settings, then come back.")
-                            .font(.callout).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    if !state.hasFullDiskAccess {
-                        Button("Open Settings") { SystemAccess.openFullDiskAccessSettings() }
-                            .buttonStyle(.glass)
-                    }
+            VStack(alignment: .leading, spacing: 18) {
+                row("eye", "Review before removing", "Nothing is deleted until you've seen it and confirmed.")
+                row("lock.shield", "Careful by default", "System files, documents and apps you're using are never touched.")
+                row("arrow.uturn.backward", "Easy to undo", "Apps, installers and leftovers go to the Trash first.")
+            }
+            .padding(.horizontal, 36)
+
+            Divider().padding(.top, 26)
+
+            HStack {
+                if state.hasFullDiskAccess {
+                    Label("Full Disk Access is on", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                        .font(.callout)
+                } else {
+                    Button("Allow Full Disk Access…") { SystemAccess.openFullDiskAccessSettings() }
                 }
+                Spacer()
+                Button("Continue", action: onFinish)
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.glassProminent)
             }
-
-            Button {
-                onFinish()
-            } label: {
-                Text("Get Started").font(.headline).frame(maxWidth: .infinity).padding(.vertical, 6)
-            }
-            .buttonStyle(.glassProminent)
-            .tint(AppSection.clean.tint)
-            .controlSize(.large)
+            .padding(20)
         }
-        .padding(32)
-        .frame(width: 520)
+        .frame(width: 480)
         .onReceive(Timer.publish(every: 1.5, on: .main, in: .common).autoconnect()) { _ in state.refreshAccess() }
     }
 
     private func row(_ symbol: String, _ title: String, _ detail: String) -> some View {
         HStack(alignment: .top, spacing: 14) {
-            Image(systemName: symbol).font(.title2).foregroundStyle(AppSection.clean.gradient).frame(width: 30)
+            Image(systemName: symbol)
+                .font(.title2)
+                .foregroundStyle(.tint)
+                .frame(width: 30)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.headline)
-                Text(detail).font(.callout).foregroundStyle(.secondary)
+                Text(detail).foregroundStyle(.secondary)
             }
         }
-    }
-}
-
-/// Scrollable page scaffold shared by every section.
-struct Page<Content: View>: View {
-    var spacing: CGFloat = 20
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: spacing) {
-                content
-            }
-            .padding(.horizontal, 32)
-            .padding(.top, 12)
-            .padding(.bottom, 32)
-            .frame(maxWidth: 1200, alignment: .leading)
-            .frame(maxWidth: .infinity)
-        }
-        .scrollEdgeEffectStyle(.soft, for: .top)
     }
 }

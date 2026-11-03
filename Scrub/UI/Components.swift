@@ -1,143 +1,132 @@
 import SwiftUI
 import Charts
 
-// MARK: - Backdrop
+// MARK: - Storage bar
 
-/// A slow-moving mesh of the section's colors that gives Liquid Glass something to refract.
-struct SceneBackground: View {
-    let colors: [Color]
-    @Environment(\.colorScheme) private var scheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 20, paused: reduceMotion)) { context in
-            let t = reduceMotion ? 0 : context.date.timeIntervalSinceReferenceDate / 6
-            let a = colors[0], b = colors[colors.count > 1 ? 1 : 0]
-            let base = scheme == .dark ? Color(white: 0.07) : Color(white: 0.97)
-            let strength = scheme == .dark ? 0.55 : 0.35
-            MeshGradient(
-                width: 3, height: 3,
-                points: [
-                    [0, 0], [0.5, 0], [1, 0],
-                    [0, 0.5], [Float(0.5 + 0.18 * sin(t)), Float(0.5 + 0.15 * cos(t * 0.8))], [1, 0.5],
-                    [0, 1], [0.5, 1], [1, 1],
-                ],
-                colors: [
-                    a.opacity(strength), base, b.opacity(strength * 0.7),
-                    base, a.opacity(strength * 0.35), base,
-                    b.opacity(strength * 0.5), base, a.opacity(strength * 0.6),
-                ],
-                smoothsColors: true
-            )
-            .background(base)
-        }
-        .ignoresSafeArea()
-        .animation(.easeInOut(duration: 0.8), value: colors.description)
-    }
-}
-
-// MARK: - Glass containers
-
-struct GlassCard<Content: View>: View {
-    var padding: CGFloat = 20
-    var cornerRadius: CGFloat = 24
-    var tint: Color? = nil
-    var interactive = false
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        content
-            .padding(padding)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .glassEffect(glass, in: .rect(cornerRadius: cornerRadius))
+/// A segmented capacity bar in the style of System Settings › General › Storage.
+struct StorageBar: View {
+    struct Segment: Identifiable {
+        let id: String
+        let label: String
+        let bytes: Int64
+        let color: Color
     }
 
-    private var glass: Glass {
-        var g = Glass.regular
-        if let tint { g = g.tint(tint.opacity(0.12)) }
-        if interactive { g = g.interactive() }
-        return g
-    }
-}
-
-struct SectionHeader<Trailing: View>: View {
-    let section: AppSection
-    var title: String? = nil
-    var subtitle: String? = nil
-    @ViewBuilder var trailing: Trailing
+    let segments: [Segment]
+    let total: Int64
+    var height: CGFloat = 14
+    var showsLegend = true
 
     var body: some View {
-        HStack(alignment: .center, spacing: 16) {
-            IconBadge(symbol: section.symbol, colors: section.colors, size: 52)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title ?? section.title)
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
-                Text(subtitle ?? section.subtitle)
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 10) {
+            GeometryReader { geo in
+                HStack(spacing: 1.5) {
+                    ForEach(segments.filter { $0.bytes > 0 }) { seg in
+                        Rectangle()
+                            .fill(seg.color.gradient)
+                            .frame(width: max(2, geo.size.width * CGFloat(seg.bytes) / CGFloat(max(total, 1))))
+                            .help("\(seg.label): \(seg.bytes.formattedBytes)")
+                    }
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.quaternary)
+                .clipShape(.rect(cornerRadius: height / 3.5))
             }
-            Spacer(minLength: 12)
-            trailing
+            .frame(height: height)
+            .animation(.smooth(duration: 0.5), value: segments.map(\.bytes))
+
+            if showsLegend {
+                HStack(spacing: 14) {
+                    ForEach(segments.filter { $0.bytes > 0 }) { seg in
+                        HStack(spacing: 5) {
+                            Circle().fill(seg.color).frame(width: 8, height: 8)
+                            Text(seg.label).foregroundStyle(.secondary)
+                        }
+                        .font(.caption)
+                    }
+                }
+            }
         }
-        .padding(.bottom, 4)
     }
 }
 
-extension SectionHeader where Trailing == EmptyView {
-    init(section: AppSection, title: String? = nil, subtitle: String? = nil) {
-        self.init(section: section, title: title, subtitle: subtitle) { EmptyView() }
+// MARK: - Floating action bar
+
+/// The floating control at the bottom of a page. It sits on the control layer, so it uses Liquid Glass;
+/// the content underneath stays plain.
+struct ActionBar<Summary: View, Actions: View>: View {
+    @ViewBuilder var summary: Summary
+    @ViewBuilder var actions: Actions
+
+    var body: some View {
+        GlassEffectContainer(spacing: 12) {
+            HStack(spacing: 18) {
+                summary
+                    .padding(.leading, 6)
+                actions
+            }
+            .padding(.leading, 16)
+            .padding(.trailing, 8)
+            .padding(.vertical, 8)
+            .glassEffect(.regular, in: .capsule)
+        }
+        .padding(.bottom, 16)
+        .frame(maxWidth: .infinity)
     }
 }
 
-/// Squircle icon with a gradient fill, like the icons in System Settings.
-struct IconBadge: View {
+struct SelectionSummary: View {
+    let bytes: Int64
+    let detail: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(bytes.formattedBytes)
+                .font(.headline)
+                .monospacedDigit()
+                .contentTransition(.numericText())
+            Text(detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(minWidth: 110, alignment: .leading)
+        .animation(.snappy, value: bytes)
+    }
+}
+
+// MARK: - States
+
+/// Progress placeholder used while a scan runs.
+struct ScanningPlaceholder: View {
+    let title: String
     let symbol: String
-    let colors: [Color]
-    var size: CGFloat = 32
+    var detail: String = ""
+    var fraction: Double? = nil
+    var onCancel: (() -> Void)? = nil
 
     var body: some View {
-        RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
-            .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
-            .overlay(
-                RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
-                    .strokeBorder(.white.opacity(0.35), lineWidth: 0.75)
-                    .blendMode(.plusLighter)
-            )
-            .overlay(
-                Image(systemName: symbol)
-                    .font(.system(size: size * 0.48, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .shadow(color: .black.opacity(0.2), radius: 1, y: 1)
-            )
-            .frame(width: size, height: size)
-            .shadow(color: colors.last!.opacity(0.35), radius: size * 0.18, y: size * 0.08)
-    }
-}
-
-// MARK: - Gauges & charts
-
-struct RingGauge<Center: View>: View {
-    var progress: Double
-    var colors: [Color]
-    var lineWidth: CGFloat = 18
-    @ViewBuilder var center: Center
-
-    var body: some View {
-        ZStack {
-            Circle().stroke(.primary.opacity(0.08), lineWidth: lineWidth)
-            Circle()
-                .trim(from: 0, to: max(0.001, min(1, progress)))
-                .stroke(
-                    AngularGradient(colors: colors + [colors[0]], center: .center, startAngle: .degrees(-90), endAngle: .degrees(270)),
-                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-                .shadow(color: colors.last!.opacity(0.4), radius: 8)
-            center
+        ContentUnavailableView {
+            Label(title, systemImage: symbol)
+                .symbolEffect(.pulse, options: .repeating)
+        } description: {
+            VStack(spacing: 12) {
+                if let fraction {
+                    ProgressView(value: fraction).frame(width: 220)
+                } else {
+                    ProgressView().controlSize(.small)
+                }
+                Text(detail.isEmpty ? " " : detail)
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+            }
+        } actions: {
+            if let onCancel { Button("Cancel", action: onCancel) }
         }
-        .animation(.spring(duration: 0.9), value: progress)
     }
 }
+
+// MARK: - Charts
 
 struct Sparkline: View {
     let values: [Double]
@@ -145,202 +134,123 @@ struct Sparkline: View {
     var maxValue: Double? = nil
 
     var body: some View {
-        let top = maxValue ?? max(values.max() ?? 1, 0.0001)
+        let top = max(maxValue ?? values.max() ?? 1, 0.0001)
         Chart {
             ForEach(Array(values.enumerated()), id: \.offset) { index, value in
                 AreaMark(x: .value("t", index), y: .value("v", value))
-                    .foregroundStyle(LinearGradient(colors: [color.opacity(0.45), color.opacity(0.02)], startPoint: .top, endPoint: .bottom))
-                    .interpolationMethod(.catmullRom)
+                    .foregroundStyle(color.opacity(0.18))
+                    .interpolationMethod(.monotone)
                 LineMark(x: .value("t", index), y: .value("v", value))
                     .foregroundStyle(color)
-                    .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round))
-                    .interpolationMethod(.catmullRom)
+                    .lineStyle(StrokeStyle(lineWidth: 1.5))
+                    .interpolationMethod(.monotone)
             }
         }
         .chartXAxis(.hidden)
         .chartYAxis(.hidden)
         .chartXScale(domain: 0...max(SystemMonitor.historyLength - 1, values.count - 1))
         .chartYScale(domain: 0...top)
+        .accessibilityHidden(true)
     }
 }
 
-struct MeterBar: View {
-    var fraction: Double
-    var colors: [Color]
-    var height: CGFloat = 8
+// MARK: - Files
 
-    var body: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule().fill(.primary.opacity(0.08))
-                Capsule()
-                    .fill(LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing))
-                    .frame(width: max(height, geo.size.width * min(1, max(0, fraction))))
-            }
-        }
-        .frame(height: height)
-        .animation(.spring(duration: 0.6), value: fraction)
-    }
-}
+/// Finder icons are expensive to fetch; cache them by path.
+enum IconCache {
+    private static let cache: NSCache<NSString, NSImage> = {
+        let c = NSCache<NSString, NSImage>()
+        c.countLimit = 2000
+        return c
+    }()
 
-// MARK: - Scanning
-
-/// An animated orb shown while a scan runs.
-struct ScanningOrb: View {
-    var colors: [Color]
-    var progress: Double? = nil
-    var size: CGFloat = 200
-    @State private var spin = false
-    @State private var pulse = false
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(RadialGradient(colors: [colors[0].opacity(0.55), colors[1].opacity(0.0)], center: .center, startRadius: 4, endRadius: size * 0.6))
-                .scaleEffect(pulse ? 1.08 : 0.92)
-            Circle()
-                .strokeBorder(AngularGradient(colors: colors + [colors[0].opacity(0)], center: .center), lineWidth: 6)
-                .rotationEffect(.degrees(spin ? 360 : 0))
-                .padding(size * 0.12)
-            if let progress {
-                Circle()
-                    .trim(from: 0, to: progress)
-                    .stroke(.white.opacity(0.9), style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .padding(size * 0.22)
-                    .animation(.easeOut, value: progress)
-            }
-            Image(systemName: "sparkle.magnifyingglass")
-                .font(.system(size: size * 0.2, weight: .semibold))
-                .foregroundStyle(.white)
-                .symbolEffect(.pulse, options: .repeating)
-        }
-        .frame(width: size, height: size)
-        .glassEffect(.regular.tint(colors[1].opacity(0.15)), in: .circle)
-        .onAppear {
-            withAnimation(.linear(duration: 2.2).repeatForever(autoreverses: false)) { spin = true }
-            withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) { pulse = true }
-        }
-    }
-}
-
-// MARK: - Small pieces
-
-struct BigNumber: View {
-    let value: String
-    var unit: String? = nil
-    var size: CGFloat = 44
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Text(value)
-                .font(.system(size: size, weight: .bold, design: .rounded))
-                .monospacedDigit()
-                .contentTransition(.numericText())
-            if let unit {
-                Text(unit)
-                    .font(.system(size: size * 0.42, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-}
-
-extension Int64 {
-    /// Splits a byte count into number and unit for display, e.g. ("12.4", "GB").
-    var byteParts: (String, String) {
-        let s = formattedBytes
-        let parts = s.split(separator: " ", maxSplits: 1)
-        return parts.count == 2 ? (String(parts[0]), String(parts[1])) : (s, "")
-    }
-}
-
-struct Pill: View {
-    let text: String
-    var color: Color = .secondary
-    var symbol: String? = nil
-
-    var body: some View {
-        HStack(spacing: 4) {
-            if let symbol { Image(systemName: symbol) }
-            Text(text)
-        }
-        .font(.caption.weight(.semibold))
-        .padding(.horizontal, 8)
-        .padding(.vertical, 3)
-        .foregroundStyle(color)
-        .background(color.opacity(0.14), in: .capsule)
-    }
-}
-
-struct EmptyState: View {
-    let symbol: String
-    let title: String
-    let message: String
-    var colors: [Color] = [.teal, .blue]
-
-    var body: some View {
-        VStack(spacing: 14) {
-            IconBadge(symbol: symbol, colors: colors, size: 72)
-            Text(title).font(.title2.bold())
-            Text(message)
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 420)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(40)
+    static func icon(for path: String) -> NSImage {
+        if let hit = cache.object(forKey: path as NSString) { return hit }
+        let image = NSWorkspace.shared.icon(forFile: path)
+        cache.setObject(image, forKey: path as NSString)
+        return image
     }
 }
 
 struct FileIcon: View {
     let path: String
-    var size: CGFloat = 28
+    var size: CGFloat = 16
 
     var body: some View {
-        Image(nsImage: NSWorkspace.shared.icon(forFile: path))
+        Image(nsImage: IconCache.icon(for: path))
             .resizable()
             .interpolation(.high)
             .frame(width: size, height: size)
     }
 }
 
-/// Standard right-click actions for a file shown anywhere in the app.
-struct FileContextMenu: View {
-    let path: String
+struct SizeText: View {
+    let bytes: Int64
     var body: some View {
-        Button("Reveal in Finder", systemImage: "folder") { SystemAccess.revealInFinder([path]) }
-        Button("Copy Path", systemImage: "doc.on.doc") { SystemAccess.copyToPasteboard(path) }
+        Text(bytes.formattedBytes)
+            .monospacedDigit()
+            .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+}
+
+/// Standard right-click actions for files shown anywhere in the app.
+struct FileContextMenu: View {
+    let paths: [String]
+
+    init(path: String) { paths = [path] }
+    init(paths: [String]) { self.paths = paths }
+
+    var body: some View {
+        Button("Show in Finder") { SystemAccess.revealInFinder(paths) }
+        Button(paths.count == 1 ? "Copy Path" : "Copy Paths") { SystemAccess.copyToPasteboard(paths.joined(separator: "\n")) }
         Divider()
-        Button("Always Protect This Item", systemImage: "lock.shield") {
+        Button("Protect from Cleaning") {
             let settings = AppSettings.shared
-            let abbreviated = Paths.abbreviate(path)
-            if !settings.protectedPaths.contains(abbreviated) { settings.protectedPaths.append(abbreviated) }
+            for path in paths.map(Paths.abbreviate) where !settings.protectedPaths.contains(path) {
+                settings.protectedPaths.append(path)
+            }
         }
     }
 }
 
-struct ResultBanner: View {
+/// A callout row used for notices inside pages, like missing permissions.
+struct NoticeRow<Accessory: View>: View {
+    let symbol: String
+    let tint: Color
     let title: String
     let message: String
-    var colors: [Color]
-    var onDismiss: (() -> Void)? = nil
+    @ViewBuilder var accessory: Accessory
 
     var body: some View {
-        GlassCard(tint: colors[0]) {
-            HStack(spacing: 14) {
-                IconBadge(symbol: "checkmark", colors: colors, size: 40)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(.headline)
-                    Text(message).foregroundStyle(.secondary)
-                }
-                Spacer()
-                if let onDismiss {
-                    Button("Done", action: onDismiss).buttonStyle(.glass)
-                }
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: symbol)
+                .font(.title3)
+                .foregroundStyle(tint)
+                .frame(width: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.callout.weight(.medium))
+                Text(message).font(.callout).foregroundStyle(.secondary)
             }
+            Spacer(minLength: 8)
+            accessory
         }
-        .transition(.move(edge: .top).combined(with: .opacity))
+        .padding(12)
+        .background(tint.opacity(0.08), in: .rect(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(tint.opacity(0.18)))
+    }
+}
+
+extension NoticeRow where Accessory == EmptyView {
+    init(symbol: String, tint: Color, title: String, message: String) {
+        self.init(symbol: symbol, tint: tint, title: title, message: message) { EmptyView() }
+    }
+}
+
+struct FullDiskAccessNotice: View {
+    var message = "Safari, Mail and other apps' data are skipped until you allow access."
+    var body: some View {
+        NoticeRow(symbol: "lock.shield", tint: .orange, title: "Full Disk Access is off", message: message) {
+            Button("Open Settings…") { SystemAccess.openFullDiskAccessSettings() }
+        }
     }
 }

@@ -137,8 +137,8 @@ private struct ProjectSettings: View {
 private struct AboutSettings: View {
     var body: some View {
         VStack(spacing: 14) {
-            IconBadge(symbol: "bubbles.and.sparkles.fill", colors: AppSection.clean.colors, size: 80)
-            Text("Scrub").font(.system(size: 28, weight: .bold, design: .rounded))
+            Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 80, height: 80)
+            Text("Scrub").font(.title.weight(.semibold))
             Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")")
                 .foregroundStyle(.secondary)
             Text("A free, open-source Mac cleaner and optimizer.\nMIT License.")

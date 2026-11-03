@@ -27,7 +27,7 @@ final class AppState {
                 case .clean, .overview: clean.scan()
                 case .analyze:
                     if let path = defaults.string(forKey: "analyzePath") {
-                        analyze.scan(.init(path: path, title: (path as NSString).lastPathComponent, symbol: "folder.fill"))
+                        analyze.scan(.init(path: path, title: (path as NSString).lastPathComponent, symbol: "folder"))
                     } else if let home = analyze.scopes.first { analyze.scan(home) }
                 case .purge: purge.scan()
                 case .uninstall: uninstall.load()

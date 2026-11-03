@@ -8,87 +8,101 @@ struct MenuBarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                IconBadge(symbol: "bubbles.and.sparkles.fill", colors: AppSection.clean.colors, size: 30)
-                VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 1) {
                     Text("Scrub").font(.headline)
                     Text("Health \(m.healthScore) · \(m.healthSummary)").font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                RingGauge(progress: Double(m.healthScore) / 100, colors: [.green, .teal], lineWidth: 4) {
-                    Text("\(m.healthScore)").font(.caption2.bold().monospacedDigit())
+                Gauge(value: Double(m.healthScore), in: 0...100) { EmptyView() } currentValueLabel: {
+                    Text("\(m.healthScore)").monospacedDigit()
                 }
-                .frame(width: 32, height: 32)
+                .gaugeStyle(.accessoryCircularCapacity)
+                .tint(m.healthScore >= 75 ? .green : .orange)
+                .scaleEffect(0.7)
+                .frame(width: 36, height: 36)
             }
 
-            GlassEffectContainer(spacing: 8) {
-                Grid(horizontalSpacing: 8, verticalSpacing: 8) {
-                    GridRow {
-                        tile("CPU", m.cpuUsage.percent, "cpu.fill", .teal, m.cpuHistory, 1)
-                        tile("Memory", m.memoryFraction.percent, "memorychip.fill", .purple, m.memoryHistory, 1)
-                    }
-                    GridRow {
-                        tile("Down", m.netDownRate.formattedRate, "arrow.down", .cyan, m.netDownHistory, nil)
-                        tile("Disk free", m.diskFree.formattedBytes, "internaldrive.fill", .blue, [], nil)
-                    }
+            VStack(spacing: 10) {
+                meter("CPU", m.cpuUsage.percent, m.cpuUsage, .green)
+                meter("Memory", m.memoryUsed.formattedBytes, m.memoryFraction, m.memoryPressure >= 2 ? .orange : .purple)
+                meter("Disk", "\(m.diskFree.formattedBytes) free", m.diskFraction, .blue)
+                if let b = m.battery {
+                    meter("Battery", "\(b.level)%", Double(b.level) / 100, b.level < 20 ? .red : .green)
                 }
-            }
-
-            if let b = m.battery {
                 HStack {
-                    Image(systemName: b.isCharging ? "battery.100.bolt" : "battery.75")
-                    Text("\(b.level)%").monospacedDigit()
+                    Label(m.netDownRate.formattedRate, systemImage: "arrow.down")
                     Spacer()
-                    if let h = b.health { Text("Health \(h)%").foregroundStyle(.secondary) }
-                    if let c = b.cycleCount { Text("· \(c) cycles").foregroundStyle(.secondary) }
+                    Label(m.netUpRate.formattedRate, systemImage: "arrow.up")
                 }
                 .font(.caption)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
             }
 
             Divider()
 
-            HStack(spacing: 8) {
-                Button {
+            VStack(alignment: .leading, spacing: 2) {
+                MenuRow(title: "Smart Scan…", symbol: "sparkles") {
                     open(.clean)
                     if state.clean.phase == .idle || state.clean.phase == .finished { state.clean.scan() }
-                } label: { Label("Smart Scan", systemImage: "sparkles").frame(maxWidth: .infinity) }
-                .buttonStyle(.glassProminent)
-                .tint(AppSection.clean.tint)
-                Button { state.optimize.run(only: ["memory"]) } label: {
-                    Label("Free RAM", systemImage: "memorychip").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.glass)
+                MenuRow(title: "Free Up Memory", symbol: "memorychip") { state.optimize.run(only: ["memory"]) }
+                MenuRow(title: "Open Scrub", symbol: "macwindow") { open(.overview) }
             }
+            Divider()
             HStack {
-                Button("Open Scrub") { open(.overview) }
+                SettingsLink { Text("Settings…") }
                 Spacer()
-                Button("Quit") { NSApp.terminate(nil) }
+                Button("Quit Scrub") { NSApp.terminate(nil) }
             }
             .buttonStyle(.borderless)
             .font(.callout)
         }
-        .padding(16)
-        .frame(width: 300)
+        .padding(14)
+        .frame(width: 280)
+        .onAppear { m.acquire("menubar") }
+        .onDisappear { m.release("menubar") }
     }
 
-    private func tile(_ title: String, _ value: String, _ symbol: String, _ color: Color, _ history: [Double], _ max: Double?) -> some View {
+    private func meter(_ title: String, _ value: String, _ fraction: Double, _ color: Color) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Label(title, systemImage: symbol).font(.caption).foregroundStyle(.secondary)
-            Text(value).font(.system(.title3, design: .rounded).weight(.semibold)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
-            if history.count > 1 {
-                Sparkline(values: history, color: color, maxValue: max).frame(height: 20)
-            } else {
-                Spacer().frame(height: 20)
+            HStack {
+                Text(title)
+                Spacer()
+                Text(value).foregroundStyle(.secondary).monospacedDigit()
             }
+            .font(.callout)
+            ProgressView(value: min(1, max(0, fraction)))
+                .progressViewStyle(.linear)
+                .tint(color)
         }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glassEffect(.regular, in: .rect(cornerRadius: 14))
     }
 
     private func open(_ section: AppSection) {
         state.section = section
         openWindow(id: "main")
         NSApp.activate()
+    }
+}
+
+/// A full-width, menu-like row that highlights on hover.
+private struct MenuRow: View {
+    let title: String
+    let symbol: String
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(hovering ? Color.accentColor.opacity(0.18) : .clear, in: .rect(cornerRadius: 6))
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
     }
 }

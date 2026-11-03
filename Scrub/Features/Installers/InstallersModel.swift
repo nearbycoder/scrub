@@ -53,9 +53,10 @@ final class InstallersModel {
                 }
             }
             for app in Paths.glob("/Applications/Install macOS*.app") where seen.insert(app).inserted {
-                found.append(InstallerFile(path: app, size: FileSizer.allocatedSize(atPath: app),
-                                           modified: Paths.modificationDate(app) ?? .now, source: "macOS Installer"))
+                found.append(InstallerFile(path: app, size: 0, modified: Paths.modificationDate(app) ?? .now, source: "macOS Installer"))
             }
+            let sizes = DiskWalker.measure(found.map(\.path))
+            found = found.map { InstallerFile(path: $0.path, size: sizes[$0.path]?.size ?? 0, modified: $0.modified, source: $0.source) }
             let cutoff = Date().addingTimeInterval(-Double(ageDays) * 86_400)
             let recent = Set(found.filter { $0.modified > cutoff }.map(\.path))
             let sorted = found.sorted { $0.size > $1.size }
@@ -78,8 +79,7 @@ final class InstallersModel {
             if isInstaller {
                 // .pkg can be a bundle directory; treat both forms as one item.
                 guard seen.insert(path).inserted else { continue }
-                let size = FileSizer.allocatedSize(atPath: path)
-                found.append(InstallerFile(path: path, size: size, modified: Paths.modificationDate(path) ?? .now, source: source))
+                found.append(InstallerFile(path: path, size: 0, modified: Paths.modificationDate(path) ?? .now, source: source))
             } else if isDir.boolValue && !entry.hasSuffix(".app") {
                 collect(path, depth: depth - 1, source: source, seen: &seen, into: &found)
             }

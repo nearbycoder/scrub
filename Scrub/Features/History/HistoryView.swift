@@ -1,118 +1,74 @@
 import SwiftUI
-import Charts
 
 struct HistoryView: View {
     @Environment(AppState.self) private var state
     @State private var confirmClear = false
-    @State private var expanded: Set<UUID> = []
+    @State private var selection: HistoryEntry.ID?
+    @State private var sortOrder = [KeyPathComparator(\HistoryEntry.date, order: .reverse)]
 
     var body: some View {
-        Page(spacing: 16) {
-            SectionHeader(section: .history) {
-                if !state.history.entries.isEmpty {
-                    Button("Clear History", role: .destructive) { confirmClear = true }.buttonStyle(.glass)
+        let entries = state.history.entries
+        Group {
+            if entries.isEmpty {
+                ContentUnavailableView("No History", systemImage: "clock.arrow.circlepath",
+                                       description: Text("Cleanups, uninstalls and maintenance runs will appear here."))
+            } else {
+                HSplitView {
+                    Table(entries.sorted(using: sortOrder), selection: $selection, sortOrder: $sortOrder) {
+                        TableColumn("Date", value: \.date) { e in
+                            Text(e.date, format: .dateTime.month(.abbreviated).day().hour().minute()).foregroundStyle(.secondary)
+                        }
+                        .width(min: 110, ideal: 140, max: 170)
+                        TableColumn("Action", value: \.title) { e in
+                            Label(e.title, systemImage: e.kind.symbol).lineLimit(1)
+                        }
+                        TableColumn("Items", value: \.itemCount) { e in
+                            Text(e.itemCount.formatted()).monospacedDigit().frame(maxWidth: .infinity, alignment: .trailing)
+                        }
+                        .width(min: 50, ideal: 60, max: 80)
+                        TableColumn("Freed", value: \.bytesFreed) { e in
+                            SizeText(bytes: e.bytesFreed).foregroundStyle(e.bytesFreed > 0 ? .primary : .tertiary)
+                        }
+                        .width(min: 70, ideal: 90, max: 110)
+                    }
+                    .frame(minWidth: 440)
+                    details.frame(minWidth: 260, idealWidth: 320)
                 }
             }
-            if state.history.entries.isEmpty {
-                GlassCard {
-                    EmptyState(symbol: "clock.arrow.circlepath", title: "Nothing yet",
-                               message: "Each cleanup, uninstall and maintenance run is recorded here so you always know what changed.",
-                               colors: AppSection.history.colors)
+        }
+        .navigationTitle("History")
+        .navigationSubtitle(entries.isEmpty ? "" : "\(state.history.totalFreed.formattedBytes) freed across \(entries.count) runs")
+        .toolbar {
+            ToolbarItem {
+                Button(role: .destructive) { confirmClear = true } label: { Label("Clear History", systemImage: "trash") }
+                    .disabled(entries.isEmpty)
+            }
+        }
+        .confirmationDialog("Clear all history?", isPresented: $confirmClear) {
+            Button("Clear History", role: .destructive) { state.history.clear() }
+        } message: { Text("This only removes the log. It doesn't restore anything.") }
+    }
+
+    @ViewBuilder private var details: some View {
+        if let id = selection, let entry = state.history.entries.first(where: { $0.id == id }) {
+            List {
+                Section {
+                    LabeledContent("Action", value: entry.kind.label)
+                    LabeledContent("Date") { Text(entry.date, format: .dateTime) }
+                    LabeledContent("Space freed", value: entry.bytesFreed.formattedBytes)
                 }
-            } else {
-                summary
-                GlassCard(padding: 0) {
-                    VStack(spacing: 0) {
-                        ForEach(state.history.entries) { entry in
-                            row(entry)
-                            if entry.id != state.history.entries.last?.id { Divider().padding(.leading, 62) }
+                if !entry.details.isEmpty {
+                    Section("Items") {
+                        ForEach(entry.details, id: \.self) { path in
+                            Text(path).font(.callout.monospaced()).lineLimit(1).truncationMode(.middle)
+                                .contextMenu { Button("Copy Path") { SystemAccess.copyToPasteboard(path) } }
                         }
                     }
                 }
             }
-        }
-        .confirmationDialog("Clear all history?", isPresented: $confirmClear) {
-            Button("Clear", role: .destructive) { state.history.clear() }
-        }
-    }
-
-    private var summary: some View {
-        let entries = state.history.entries
-        let daily = Dictionary(grouping: entries.filter { $0.date > Date().addingTimeInterval(-30 * 86_400) }) {
-            Calendar.current.startOfDay(for: $0.date)
-        }.map { (day: $0.key, bytes: $0.value.reduce(0) { $0 + $1.bytesFreed }) }.sorted { $0.day < $1.day }
-        return HStack(spacing: 16) {
-            GlassCard {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Freed all-time").font(.subheadline).foregroundStyle(.secondary)
-                    let parts = state.history.totalFreed.byteParts
-                    BigNumber(value: parts.0, unit: parts.1, size: 40)
-                    Text("\(entries.count) runs since \(entries.last?.date.formatted(date: .abbreviated, time: .omitted) ?? "")")
-                        .font(.callout).foregroundStyle(.secondary)
-                }
-            }
-            .frame(width: 280)
-            GlassCard {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Last 30 days").font(.subheadline).foregroundStyle(.secondary)
-                    Chart(daily, id: \.day) { d in
-                        BarMark(x: .value("Day", d.day, unit: .day), y: .value("Freed", Double(d.bytes) / 1_000_000_000))
-                            .foregroundStyle(AppSection.clean.gradient)
-                            .clipShape(.rect(cornerRadius: 4))
-                    }
-                    .chartYAxis { AxisMarks { v in AxisGridLine(); AxisValueLabel { if let d = v.as(Double.self) { Text("\(d, specifier: "%.1f") GB") } } } }
-                    .frame(height: 90)
-                }
-            }
-        }
-    }
-
-    private func row(_ entry: HistoryEntry) -> some View {
-        let isOpen = expanded.contains(entry.id)
-        return VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 14) {
-                IconBadge(symbol: entry.kind.symbol, colors: colors(for: entry.kind), size: 32)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(entry.title).font(.body.weight(.medium)).lineLimit(1)
-                    Text("\(entry.kind.label) · \(entry.date.formatted(date: .abbreviated, time: .shortened))")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
-                if entry.bytesFreed > 0 {
-                    Text(entry.bytesFreed.formattedBytes).font(.callout.weight(.semibold).monospacedDigit())
-                }
-                if !entry.details.isEmpty {
-                    Image(systemName: "chevron.right").rotationEffect(.degrees(isOpen ? 90 : 0)).foregroundStyle(.tertiary)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .contentShape(.rect)
-            .onTapGesture {
-                withAnimation(.smooth) { if isOpen { expanded.remove(entry.id) } else { expanded.insert(entry.id) } }
-            }
-            if isOpen {
-                VStack(alignment: .leading, spacing: 3) {
-                    ForEach(entry.details.prefix(100), id: \.self) { d in
-                        Text(d).font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
-                    }
-                    if entry.details.count > 100 { Text("and \(entry.details.count - 100) more").font(.caption).foregroundStyle(.tertiary) }
-                }
-                .padding(.leading, 62)
-                .padding(.trailing, 16)
-                .padding(.bottom, 10)
-            }
-        }
-    }
-
-    private func colors(for kind: HistoryEntry.Kind) -> [Color] {
-        switch kind {
-        case .clean: AppSection.clean.colors
-        case .uninstall: AppSection.uninstall.colors
-        case .analyze: AppSection.analyze.colors
-        case .optimize: AppSection.optimize.colors
-        case .purge: AppSection.purge.colors
-        case .installers: AppSection.installers.colors
+        } else {
+            ContentUnavailableView("No Selection", systemImage: "list.bullet.rectangle",
+                                   description: Text("Select a run to see what it removed."))
         }
     }
 }

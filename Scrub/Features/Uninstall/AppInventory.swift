@@ -9,8 +9,11 @@ struct InstalledApp: Identifiable, Hashable {
     let executable: String?
     let isAppStore: Bool
     let lastUsed: Date?
+    var size: Int64?
 
     var url: URL { URL(fileURLWithPath: path) }
+    var sizeSort: Int64 { size ?? -1 }
+    var lastUsedSort: Date { lastUsed ?? .distantPast }
     var isRunning: Bool { !NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).isEmpty }
     var location: String { Paths.abbreviate((path as NSString).deletingLastPathComponent) }
 }
@@ -106,6 +109,24 @@ struct Leftover: Identifiable, Hashable {
     let selectedByDefault: Bool
 }
 
+/// Caches directory listings of the Library folders leftovers live in, so looking up leftovers for
+/// many apps costs one listing per folder instead of one per app.
+final class LeftoverIndex: @unchecked Sendable {
+    static let shared = LeftoverIndex()
+    private let lock = NSLock()
+    private var listings: [String: [String]] = [:]
+
+    func entries(of dir: String) -> [String] {
+        lock.lock(); defer { lock.unlock() }
+        if let cached = listings[dir] { return cached }
+        let list = (try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []
+        listings[dir] = list
+        return list
+    }
+
+    func invalidate() { lock.lock(); listings.removeAll(); lock.unlock() }
+}
+
 enum LeftoverFinder {
     static func find(for app: InstalledApp) -> [Leftover] {
         let id = app.bundleID
@@ -162,22 +183,54 @@ enum LeftoverFinder {
             ("/Users/Shared", "Shared Files", matchesExact, false),
         ]
 
-        var found: [Leftover] = []
+        var matches: [(path: String, kind: String, admin: Bool, selected: Bool)] = []
         var seen = Set<String>()
         let fullDiskAccess = SystemAccess.hasFullDiskAccess
         for rule in rules {
             let dir = Paths.expand(rule.dir)
-            for entry in (try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? [] where rule.match(entry) {
+            // Reading inside other apps' containers without Full Disk Access triggers a privacy prompt.
+            if !fullDiskAccess && SystemAccess.isPrivacyProtected(dir + "/") { continue }
+            let writable = FileManager.default.isWritableFile(atPath: dir)
+            for entry in LeftoverIndex.shared.entries(of: dir) where rule.match(entry) {
                 let path = dir + "/" + entry
                 guard seen.insert(path).inserted, PathGuard.isAllowed(path) else { continue }
-                let parentWritable = FileManager.default.isWritableFile(atPath: dir)
-                // Measuring another app's container without Full Disk Access would trigger a privacy prompt.
-                let measurable = fullDiskAccess || !SystemAccess.isPrivacyProtected(path)
-                found.append(Leftover(path: path, kind: rule.kind, size: measurable ? FileSizer.allocatedSize(atPath: path) : 0,
-                                      requiresAdmin: !parentWritable,
-                                      selectedByDefault: rule.selected))
+                matches.append((path, rule.kind, !writable, rule.selected))
             }
         }
-        return found.sorted { $0.size > $1.size }
+        // Many apps nest their data in a vendor folder, e.g. Application Support/Google/Chrome or
+        // Caches/JetBrains/IntelliJIdea2026.1. Match the app's name (minus the vendor) followed by
+        // nothing or a version number, so "Chrome" never picks up "Chrome Canary".
+        let parts = id.split(separator: ".")
+        if parts.count >= 3 {
+            let vendor = String(parts[1]).lowercased()
+            let compact = { (s: String) in s.lowercased().filter { $0.isLetter || $0.isNumber } }
+            var targets = Set(names.map(compact))
+            for n in names where compact(n).hasPrefix(vendor) && compact(n).count > vendor.count {
+                targets.insert(String(compact(n).dropFirst(vendor.count)))
+            }
+            for (dir, kind) in [("~/Library/Application Support", "Application Support"), ("~/Library/Caches", "Caches"),
+                                ("~/Library/Logs", "Logs"), ("/Library/Application Support", "System Application Support")] {
+                let base = Paths.expand(dir)
+                guard let vendorFolder = LeftoverIndex.shared.entries(of: base).first(where: { $0.lowercased() == vendor }) else { continue }
+                let folder = base + "/" + vendorFolder
+                let writable = FileManager.default.isWritableFile(atPath: folder)
+                for entry in LeftoverIndex.shared.entries(of: folder) {
+                    let e = compact(entry)
+                    let hit = targets.contains { t in
+                        guard t.count >= 3, e.hasPrefix(t) else { return false }
+                        let rest = entry.lowercased().filter { $0.isLetter || $0.isNumber || $0 == "." }.dropFirst(t.count)
+                        return rest.isEmpty || rest.first!.isNumber
+                    }
+                    let path = folder + "/" + entry
+                    if hit, seen.insert(path).inserted, PathGuard.isAllowed(path) {
+                        matches.append((path, kind, !writable, true))
+                    }
+                }
+            }
+        }
+        let sizes = DiskWalker.measure(matches.map(\.path))
+        return matches.map { m in
+            Leftover(path: m.path, kind: m.kind, size: sizes[m.path]?.size ?? 0, requiresAdmin: m.admin, selectedByDefault: m.selected)
+        }.sorted { $0.size > $1.size }
     }
 }

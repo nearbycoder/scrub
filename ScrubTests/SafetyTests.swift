@@ -21,6 +21,56 @@ final class PathGuardTests: XCTestCase {
     }
 }
 
+final class DiskWalkerTests: XCTestCase {
+    private var base: String!
+
+    override func setUpWithError() throws {
+        base = FileManager.default.temporaryDirectory.appendingPathComponent("scrub-tests-\(UUID().uuidString)").path
+        let fm = FileManager.default
+        try fm.createDirectory(atPath: base + "/a/b/c", withIntermediateDirectories: true)
+        try fm.createDirectory(atPath: base + "/empty", withIntermediateDirectories: true)
+        fm.createFile(atPath: base + "/a/one", contents: Data(repeating: 1, count: 100_000))
+        fm.createFile(atPath: base + "/a/b/two", contents: Data(repeating: 2, count: 300_000))
+        fm.createFile(atPath: base + "/a/b/c/three", contents: Data(repeating: 3, count: 50_000))
+        try fm.linkItem(atPath: base + "/a/b/two", toPath: base + "/a/hardlink")
+        try fm.createSymbolicLink(atPath: base + "/a/link", withDestinationPath: "/System")
+    }
+
+    override func tearDownWithError() throws {
+        try? FileManager.default.removeItem(atPath: base)
+    }
+
+    func testMeasureMatchesDuAndCountsHardlinksOnce() {
+        let result = DiskWalker.measure([base + "/a", base + "/empty"])
+        let a = result[base + "/a"]!
+        XCTAssertEqual(a.files, 4, "one, two, three and the symlink; the hard link is counted once")
+        XCTAssertGreaterThanOrEqual(a.size, 450_000)
+        XCTAssertLessThan(a.size, 600_000, "symlinks must not be followed")
+        XCTAssertEqual(result[base + "/empty"]?.size, 0)
+        XCTAssertNotNil(a.newest)
+    }
+
+    func testTreeAggregatesSizes() {
+        let (root, _) = DiskWalker.tree(base, fileNodeThreshold: 200_000, progress: DiskWalker.Progress())
+        let a = root.children.first { $0.name == "a" }!
+        let b = a.children.first { $0.name == "b" }!
+        XCTAssertEqual(root.size, a.size + (root.children.first { $0.name == "empty" }?.size ?? 0))
+        // "two" and "hardlink" share an inode; whichever the parallel walk reaches first is counted.
+        let fileNodes = (a.children + b.children).filter { !$0.isDirectory }.map(\.name)
+        XCTAssertEqual(fileNodes.filter { $0 == "two" || $0 == "hardlink" }.count, 1, "large files become nodes, hard links once")
+        XCTAssertEqual(b.path, base + "/a/b")
+        XCTAssertGreaterThan(a.size, b.size)
+    }
+
+    func testPruneKeepsSizes() {
+        let (root, _) = DiskWalker.tree(base, retainDepth: 1, progress: DiskWalker.Progress())
+        let a = root.children.first { $0.name == "a" }!
+        XCTAssertTrue(a.isTruncated)
+        XCTAssertTrue(a.children.isEmpty)
+        XCTAssertGreaterThan(a.size, 400_000)
+    }
+}
+
 final class RemoverTests: XCTestCase {
     private var base: String!
 
@@ -51,16 +101,15 @@ final class RemoverTests: XCTestCase {
 final class TreemapTests: XCTestCase {
     func testLayoutFillsRectProportionally() {
         let nodes = [400, 300, 200, 100].map { size -> DiskNode in
-            let n = DiskNode(path: "/tmp/\(size)", isDirectory: false)
+            let n = DiskNode(name: "\(size)", isDirectory: false)
             n.size = Int64(size)
             return n
         }
-        let rect = CGRect(x: 0, y: 0, width: 100, height: 100)
-        let tiles = Treemap.layout(nodes, in: rect)
+        let tiles = Treemap.layout(nodes, in: CGRect(x: 0, y: 0, width: 100, height: 100))
         XCTAssertEqual(tiles.count, 4)
-        let area = tiles.reduce(0) { $0 + $1.rect.width * $1.rect.height }
-        XCTAssertEqual(area, 10_000, accuracy: 1)
-        XCTAssertEqual(tiles.first { $0.node.size == 400 }!.rect.width * tiles.first { $0.node.size == 400 }!.rect.height, 4_000, accuracy: 1)
+        XCTAssertEqual(tiles.reduce(0) { $0 + $1.rect.width * $1.rect.height }, 10_000, accuracy: 1)
+        let biggest = tiles.first { $0.node.size == 400 }!.rect
+        XCTAssertEqual(biggest.width * biggest.height, 4_000, accuracy: 1)
     }
 }
 

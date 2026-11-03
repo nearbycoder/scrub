@@ -9,6 +9,7 @@ struct ProcessSample: Identifiable, Hashable {
     let name: String
     let cpu: Double
     let memory: Int64
+    let user: String
     var id: Int32 { pid }
 }
 
@@ -53,9 +54,8 @@ final class SystemMonitor {
     var uptime: TimeInterval = 0
     // Processes
     var topProcesses: [ProcessSample] = []
-    var processesEnabled = false
 
-    struct BatteryInfo {
+    struct BatteryInfo: Equatable {
         var level: Int
         var isCharging: Bool
         var isPluggedIn: Bool
@@ -113,6 +113,8 @@ final class SystemMonitor {
     }
 
     private var timer: Timer?
+    private var consumers: Set<String> = []
+    private var processSampler = ProcessSampler()
     private var previousCPU: [processor_cpu_load_info] = []
     private var previousNet: (down: UInt64, up: UInt64, time: Date)?
     private var previousDisk: (read: UInt64, write: UInt64, time: Date)?
@@ -120,11 +122,35 @@ final class SystemMonitor {
 
     private init() {}
 
+    /// Starts slow background sampling (disk space only). Views that show live data call `acquire`,
+    /// which switches to full-rate sampling until every consumer has called `release`.
     func start() {
         guard timer == nil else { return }
-        sample()
-        timer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in self?.sample() }
-        timer?.tolerance = 0.3
+        sampleDisk()
+        reschedule()
+    }
+
+    func acquire(_ consumer: String) {
+        let wasIdle = consumers.isEmpty
+        consumers.insert(consumer)
+        if wasIdle { sample(); reschedule() }
+    }
+
+    func release(_ consumer: String) {
+        consumers.remove(consumer)
+        if consumers.isEmpty { reschedule() }
+    }
+
+    private var isLive: Bool { !consumers.isEmpty }
+
+    private func reschedule() {
+        timer?.invalidate()
+        let interval: TimeInterval = isLive ? 1.5 : 20
+        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            if self.isLive { self.sample() } else { self.sampleDisk() }
+        }
+        timer?.tolerance = interval * 0.2
     }
 
     private func push(_ value: Double, into history: inout [Double]) {
@@ -138,15 +164,18 @@ final class SystemMonitor {
         sampleMemory()
         sampleNetwork()
         sampleDiskIO()
-        gpuUsage = Self.readGPU()
-        push(gpuUsage ?? 0, into: &gpuHistory)
-        thermalState = ProcessInfo.processInfo.thermalState
+        let gpu = Self.readGPU()
+        if gpu != gpuUsage { gpuUsage = gpu }
+        push(gpu ?? 0, into: &gpuHistory)
+        let thermal = ProcessInfo.processInfo.thermalState
+        if thermal != thermalState { thermalState = thermal }
         uptime = ProcessInfo.processInfo.systemUptime
         if tick % 4 == 1 {
             sampleDisk()
-            battery = Self.readBattery()
+            let b = Self.readBattery()
+            if b != battery { battery = b }
         }
-        if processesEnabled && tick % 2 == 1 { sampleProcesses() }
+        if consumers.contains("processes") && tick % 2 == 1 { sampleProcesses() }
     }
 
     private func sampleCPU() {
@@ -200,7 +229,7 @@ final class SystemMonitor {
 
         var level: Int32 = 1
         var size = MemoryLayout<Int32>.size
-        if sysctlbyname("kern.memorystatus_vm_pressure_level", &level, &size, nil, 0) == 0 { memoryPressure = Int(level) }
+        if sysctlbyname("kern.memorystatus_vm_pressure_level", &level, &size, nil, 0) == 0, Int(level) != memoryPressure { memoryPressure = Int(level) }
         var swap = xsw_usage()
         size = MemoryLayout<xsw_usage>.size
         if sysctlbyname("vm.swapusage", &swap, &size, nil, 0) == 0 { swapUsed = Int64(swap.xsu_used) }
@@ -209,11 +238,14 @@ final class SystemMonitor {
     private func sampleDisk() {
         let url = URL(fileURLWithPath: "/")
         if let values = try? url.resourceValues(forKeys: [.volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey]) {
-            diskTotal = Int64(values.volumeTotalCapacity ?? 0)
+            let total = Int64(values.volumeTotalCapacity ?? 0)
             let important = values.volumeAvailableCapacityForImportantUsage ?? 0
             let plain = Int64(values.volumeAvailableCapacity ?? 0)
-            diskFree = important > 0 ? important : plain
-            diskPurgeable = max(0, diskFree - plain)
+            let free = important > 0 ? important : plain
+            // Only publish real changes so views that show disk space don't redraw for nothing.
+            if total != diskTotal { diskTotal = total }
+            if abs(free - diskFree) > 1_000_000 { diskFree = free }
+            if max(0, free - plain) != diskPurgeable { diskPurgeable = max(0, free - plain) }
         }
     }
 
@@ -331,17 +363,91 @@ final class SystemMonitor {
     }
 
     private func sampleProcesses() {
+        let sampler = processSampler
         Task.detached(priority: .utility) { [weak self] in
-            let result = Shell.runSync("/bin/ps", ["-Aceo", "pid=,pcpu=,rss=,comm="], timeout: 5)
-            var list: [ProcessSample] = []
-            for line in result.output.split(separator: "\n") {
-                let parts = line.split(separator: " ", maxSplits: 3, omittingEmptySubsequences: true)
-                guard parts.count == 4, let pid = Int32(parts[0]), let cpu = Double(parts[1]), let rss = Int64(parts[2]) else { continue }
-                list.append(ProcessSample(pid: pid, name: String(parts[3]), cpu: cpu, memory: rss * 1024))
-            }
-            let sorted = list.sorted { $0.cpu == $1.cpu ? $0.memory > $1.memory : $0.cpu > $1.cpu }
-            await MainActor.run { self?.topProcesses = Array(sorted.prefix(40)) }
+            let list = sampler.sample()
+            await MainActor.run { self?.topProcesses = list }
         }
+    }
+}
+
+/// Reads per-process CPU time and memory footprint through libproc. Unlike shelling out to `ps`,
+/// this costs a couple of system calls per process and no subprocess.
+final class ProcessSampler: @unchecked Sendable {
+    private var previous: [pid_t: UInt64] = [:]
+    private var previousTime: UInt64 = 0
+    private let lock = NSLock()
+    private let timebase: Double = {
+        var info = mach_timebase_info_data_t()
+        mach_timebase_info(&info)
+        return Double(info.numer) / Double(info.denom)
+    }()
+    private var names: [pid_t: (String, String)] = [:]
+
+    func sample(limit: Int = 60) -> [ProcessSample] {
+        lock.lock(); defer { lock.unlock() }
+        var pids = [pid_t](repeating: 0, count: 8192)
+        let count = Int(proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size)))
+        guard count > 0 else { return [] }
+        let now = mach_absolute_time()
+        let elapsedNs = Double(now &- previousTime) * timebase
+        var current: [pid_t: UInt64] = [:]
+        var samples: [ProcessSample] = []
+        for pid in pids.prefix(count) where pid > 0 {
+            var info = proc_taskinfo()
+            guard proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &info, Int32(MemoryLayout<proc_taskinfo>.size)) == MemoryLayout<proc_taskinfo>.size else { continue }
+            let cpuTime = info.pti_total_user + info.pti_total_system
+            current[pid] = cpuTime
+            var cpu = 0.0
+            if let before = previous[pid], previousTime > 0, elapsedNs > 0, cpuTime >= before {
+                cpu = Double(cpuTime - before) * timebase / elapsedNs * 100
+            }
+            var usage = rusage_info_v4()
+            let footprint: Int64 = withUnsafeMutablePointer(to: &usage) { ptr in
+                ptr.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { proc_pid_rusage(pid, RUSAGE_INFO_V4, $0) }
+            } == 0 ? Int64(usage.ri_phys_footprint) : Int64(info.pti_resident_size)
+            let (name, user) = identity(pid)
+            samples.append(ProcessSample(pid: pid, name: name, cpu: cpu, memory: footprint, user: user))
+        }
+        previous = current
+        previousTime = now
+        names = names.filter { current[$0.key] != nil }
+        let byCPU = samples.sorted { $0.cpu > $1.cpu }.prefix(limit)
+        let byMemory = samples.sorted { $0.memory > $1.memory }.prefix(limit)
+        var seen = Set<pid_t>()
+        return (byCPU + byMemory).filter { seen.insert($0.pid).inserted }
+    }
+
+    private func identity(_ pid: pid_t) -> (String, String) {
+        if let cached = names[pid] { return cached }
+        var name = ""
+        var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
+        if proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 {
+            let path = String(cString: buffer)
+            // Prefer the app name for anything inside an .app bundle's MacOS folder.
+            if let range = path.range(of: ".app/Contents/MacOS/") {
+                name = (String(path[..<range.lowerBound]) as NSString).lastPathComponent
+                if path[range.upperBound...].contains("/") || (path as NSString).lastPathComponent != name {
+                    name = (path as NSString).lastPathComponent
+                }
+            } else {
+                name = (path as NSString).lastPathComponent
+            }
+        }
+        if name.isEmpty {
+            var short = [CChar](repeating: 0, count: 64)
+            proc_name(pid, &short, UInt32(short.count))
+            name = String(cString: short)
+        }
+        if pid == 0 { name = "kernel_task" }
+        var bsd = proc_bsdshortinfo()
+        var user = ""
+        if proc_pidinfo(pid, PROC_PIDT_SHORTBSDINFO, 0, &bsd, Int32(MemoryLayout<proc_bsdshortinfo>.size)) > 0,
+           let pw = getpwuid(bsd.pbsi_uid) {
+            user = String(cString: pw.pointee.pw_name)
+        }
+        names[pid] = (name, user)
+        return (name, user)
     }
 }
 

@@ -10,11 +10,10 @@ struct ScrubApp: App {
         Window("Scrub", id: "main") {
             ContentView()
                 .environment(state)
-                .frame(minWidth: 1020, minHeight: 680)
+                .frame(minWidth: 960, minHeight: 620)
         }
-        .windowStyle(.hiddenTitleBar)
+        .defaultSize(width: 1180, height: 760)
         .windowToolbarStyle(.unified)
-        .defaultSize(width: 1180, height: 780)
         .commands {
             CommandGroup(replacing: .newItem) {}
             CommandMenu("Scan") {
@@ -25,13 +24,13 @@ struct ScrubApp: App {
                     if let home = state.analyze.scopes.first { state.analyze.scan(home) }
                 }
                 .keyboardShortcut("l", modifiers: [.command, .shift])
+                Button("Find Build Folders") { state.section = .purge; state.purge.scan() }
             }
             CommandGroup(after: .sidebar) {
+                Divider()
                 ForEach(Array(AppSection.allCases.enumerated()), id: \.element) { index, section in
-                    if index < 9 {
-                        Button(section.title) { state.section = section }
-                            .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
-                    }
+                    Button(section.title) { state.section = section }
+                        .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
                 }
             }
         }
@@ -45,7 +44,7 @@ struct ScrubApp: App {
             MenuBarView()
                 .environment(state)
         } label: {
-            Image(systemName: "bubbles.and.sparkles.fill")
+            Image(systemName: "sparkles")
         }
         .menuBarExtraStyle(.window)
     }
@@ -54,6 +53,7 @@ struct ScrubApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         SystemMonitor.shared.start()
+        DemoDirector.startIfRequested()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

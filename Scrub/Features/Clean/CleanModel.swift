@@ -31,6 +31,18 @@ final class CleanRuleResult: Identifiable {
     }
 }
 
+/// One row of the Smart Clean outline: a group, a rule inside it, or an item inside a rule.
+struct CleanRow: Identifiable, Hashable {
+    enum Kind: Hashable {
+        case group(CleanGroup)
+        case rule(String)
+        case item(String, ruleID: String)
+    }
+    let id: String
+    let kind: Kind
+    var children: [CleanRow] = []
+}
+
 @Observable
 final class CleanModel {
     enum Phase: Equatable {
@@ -38,13 +50,20 @@ final class CleanModel {
     }
 
     var phase: Phase = .idle
-    var results: [CleanRuleResult] = []
+    var results: [CleanRuleResult] = [] { didSet { rebuildIndex() } }
+    private(set) var rows: [CleanRow] = []
+    private(set) var resultByID: [String: CleanRuleResult] = [:]
+    private(set) var itemByPath: [String: CleanItem] = [:]
+    var expanded: Set<String> = []
     var progress: Double = 0
     var currentStep = ""
+    var scannedFiles = 0
+    var scannedBytes: Int64 = 0
     var lastReport: RemovalReport?
     var lastFreed: Int64 = 0
     var lastScanDate: Date?
     var skippedForAccess = 0
+    var scanDuration: TimeInterval = 0
 
     var totalFound: Int64 { results.reduce(0) { $0 + $1.totalSize } }
     var totalSelected: Int64 { results.reduce(0) { $0 + $1.selectedSize } }
@@ -54,10 +73,30 @@ final class CleanModel {
     func size(of group: CleanGroup) -> Int64 { results(in: group).reduce(0) { $0 + $1.totalSize } }
     func selectedSize(of group: CleanGroup) -> Int64 { results(in: group).reduce(0) { $0 + $1.selectedSize } }
 
+    private func rebuildIndex() {
+        resultByID = Dictionary(uniqueKeysWithValues: results.map { ($0.id, $0) })
+        itemByPath = [:]
+        var groups: [CleanRow] = []
+        for group in CleanGroup.allCases {
+            let rules = results(in: group)
+            guard !rules.isEmpty else { continue }
+            let ruleRows = rules.map { r -> CleanRow in
+                for item in r.items { itemByPath[item.path] = item }
+                return CleanRow(id: "rule:" + r.id, kind: .rule(r.id),
+                                children: r.items.map { CleanRow(id: $0.path, kind: .item($0.path, ruleID: r.id)) })
+            }
+            groups.append(CleanRow(id: "group:" + group.rawValue, kind: .group(group), children: ruleRows))
+        }
+        rows = groups
+    }
+
     func scan() {
         guard phase != .scanning && phase != .cleaning else { return }
         phase = .scanning
         progress = 0
+        scannedFiles = 0
+        scannedBytes = 0
+        currentStep = "Looking for junk"
         results = []
         lastReport = nil
         let settings = AppSettings.shared
@@ -69,6 +108,17 @@ final class CleanModel {
         let enabled = settings.enabledCleanRules
         let protected = settings.protectedPaths
         let fullDiskAccess = SystemAccess.hasFullDiskAccess
+        let walkProgress = DiskWalker.Progress()
+        let started = Date()
+
+        // Poll the walker's counters instead of hopping to the main actor for every directory.
+        Task { @MainActor [weak self] in
+            while let self, self.phase == .scanning {
+                self.scannedFiles = walkProgress.files
+                self.scannedBytes = walkProgress.bytes
+                try? await Task.sleep(for: .milliseconds(120))
+            }
+        }
 
         Task.detached(priority: .userInitiated) { [weak self] in
             let rules = CleanCatalog.rules
@@ -81,89 +131,94 @@ final class CleanModel {
                 skipped += all.count - allowed.count
                 roots[rule.id] = allowed
             }
-            let installed = rules.contains(where: { $0.id == "orphans" }) ? AppInventory.installedBundleIDs() : []
+            let allRoots = roots.flatMap { id, paths in paths.map { ($0, id) } }
 
-            var finished = 0
+            // 1. Find candidates for every rule (cheap directory listings, in parallel).
+            var candidates = [[String]](repeating: [], count: rules.count)
             let lock = NSLock()
-            var collected: [CleanRuleResult] = []
+            let installed = AppInventory.installedBundleIDs()
             DispatchQueue.concurrentPerform(iterations: rules.count) { index in
                 let rule = rules[index]
-                let otherRoots = roots.filter { $0.key != rule.id }.flatMap(\.value)
-                let items: [CleanItem]
+                let found: [String]
                 if rule.id == "orphans" {
-                    items = OrphanFinder.find(installed: installed, fullDiskAccess: fullDiskAccess)
+                    found = OrphanFinder.candidates(installed: installed, fullDiskAccess: fullDiskAccess)
                 } else {
-                    items = Self.collect(rule: rule, roots: roots[rule.id] ?? [], otherRoots: otherRoots,
-                                         running: running, protected: protected)
+                    let others = allRoots.filter { $0.1 != rule.id }.map(\.0)
+                    found = Self.candidates(rule: rule, roots: roots[rule.id] ?? [], otherRoots: others,
+                                            running: running, protected: protected)
                 }
+                lock.lock(); candidates[index] = found; lock.unlock()
+            }
+            await MainActor.run { self?.currentStep = "Measuring"; self?.progress = 0.3 }
+
+            // 2. Measure everything in one parallel walk.
+            let skip: ((String) -> Bool)? = fullDiskAccess ? nil : { SystemAccess.isPrivacyProtected($0) }
+            let measured = DiskWalker.measure(candidates.flatMap { $0 }, skip: skip, progress: walkProgress)
+
+            // 3. Assemble results.
+            var collected: [CleanRuleResult] = []
+            for (index, rule) in rules.enumerated() {
+                let cutoff = rule.minAgeDays.map { Date().addingTimeInterval(-Double($0) * 86_400) }
+                var items: [CleanItem] = []
+                for path in candidates[index] {
+                    guard let m = measured[path] else { continue }
+                    if let cutoff, let newest = m.newest, newest > cutoff { continue }
+                    if m.size < 4096 && rule.group != .trash { continue }
+                    items.append(CleanItem(path: path, size: m.size, modified: m.newest))
+                }
+                guard !items.isEmpty else { continue }
                 let blocking = rule.bundleIDs.first { running.contains($0) }
-                let blockedBy = blocking.map { "\(runningNames[$0] ?? $0) is open" }
                 var selected = rule.selectedByDefault
                 if disabled.contains(rule.id) { selected = false }
                 if enabled.contains(rule.id) { selected = true }
-                let result = CleanRuleResult(rule: rule, items: items.sorted { $0.size > $1.size },
-                                             isSelected: selected, blockedBy: blockedBy)
-                lock.lock()
-                if !items.isEmpty { collected.append(result) }
-                finished += 1
-                let p = Double(finished) / Double(rules.count)
-                lock.unlock()
-                Task { @MainActor in
-                    self?.progress = max(self?.progress ?? 0, p)
-                    self?.currentStep = rule.name
-                }
+                collected.append(CleanRuleResult(rule: rule, items: items.sorted { $0.size > $1.size }, isSelected: selected,
+                                                 blockedBy: blocking.map { "\(runningNames[$0] ?? $0) is open" }))
             }
-            let order = Dictionary(uniqueKeysWithValues: rules.enumerated().map { ($1.id, $0) })
-            let sorted = collected.sorted { (order[$0.rule.id] ?? 0) < (order[$1.rule.id] ?? 0) }
             let skippedCount = skipped
             await MainActor.run {
                 guard let self else { return }
                 self.skippedForAccess = skippedCount
-                self.results = sorted
+                self.results = collected
+                self.expanded = Set(collected.filter(\.isSelected).map { "group:" + $0.rule.group.rawValue })
                 self.phase = .ready
                 self.progress = 1
                 self.lastScanDate = .now
+                self.scanDuration = Date().timeIntervalSince(started)
+                self.scannedFiles = walkProgress.files
+                self.scannedBytes = walkProgress.bytes
             }
         }
     }
 
-    static func collect(rule: CleanRule, roots: [String], otherRoots: [String],
-                                    running: Set<String>, protected: [String]) -> [CleanItem] {
+    /// Lists the paths a rule would remove, before measuring them.
+    static func candidates(rule: CleanRule, roots: [String], otherRoots: [String],
+                           running: Set<String>, protected: [String]) -> [String] {
         let isProtected: (String) -> Bool = { path in
             protected.contains { let p = Paths.expand($0); return path == p || path.hasPrefix(p + "/") }
         }
-        var candidates: [String] = []
+        var raw: [String] = []
         switch rule.scope {
         case .items:
-            candidates = roots
+            raw = roots
         case .contents:
             for root in roots where Paths.isDirectory(root) && !isProtected(root) {
                 for child in Paths.children(of: root) {
                     let name = (child as NSString).lastPathComponent
                     if rule.excludeNames.contains(name) || name == ".DS_Store" || name == ".localized" { continue }
                     if let exts = rule.extensions, !exts.contains((name as NSString).pathExtension.lowercased()) { continue }
-                    candidates.append(child)
+                    raw.append(child)
                 }
             }
         }
-
-        let cutoff = rule.minAgeDays.map { Date().addingTimeInterval(-Double($0) * 86_400) }
-        var items: [CleanItem] = []
         var seen = Set<String>()
-        for path in candidates where seen.insert(path).inserted {
+        return raw.filter { path in
+            guard seen.insert(path).inserted else { return false }
             // A broad rule (like all user caches) must not contain a narrower rule's target.
-            if otherRoots.contains(where: { $0 == path || $0.hasPrefix(path + "/") }) { continue }
+            if otherRoots.contains(where: { $0 == path || $0.hasPrefix(path + "/") }) { return false }
             let name = (path as NSString).lastPathComponent
-            if running.contains(where: { name == $0 || name.hasPrefix($0 + ".") || name == $0 + ".savedState" }) { continue }
-            if isProtected(path) { continue }
-            if !PathGuard.isAllowed(path) { continue }
-            let modified = Paths.isDirectory(path) ? FileSizer.shallowLastModified(URL(fileURLWithPath: path)) : Paths.modificationDate(path)
-            if let cutoff, let modified, modified > cutoff { continue }
-            let size = FileSizer.allocatedSize(atPath: path)
-            if size < 4096 && rule.group != .trash { continue }
-            items.append(CleanItem(path: path, size: size, modified: modified))
+            if running.contains(where: { name == $0 || name.hasPrefix($0 + ".") || name == $0 + ".savedState" }) { return false }
+            return !isProtected(path) && PathGuard.isAllowed(path)
         }
-        return items
     }
 
     func clean() {
@@ -179,7 +234,8 @@ final class CleanModel {
             var report = RemovalReport()
             for (index, (rule, items)) in work.enumerated() {
                 await MainActor.run { self?.currentStep = rule.name }
-                let ruleMode: RemovalMode = rule.group == .trash ? .permanent : (rule.group == .separately || rule.group == .leftovers || rule.group == .installers ? .trash : mode)
+                let keepsUndo = rule.group == .separately || rule.group == .leftovers || rule.group == .installers
+                let ruleMode: RemovalMode = rule.group == .trash ? .permanent : (keepsUndo ? .trash : mode)
                 var sizes: [String: Int64] = [:]
                 for item in items { sizes[item.path] = item.size }
                 report.merge(Remover.remove(items.map(\.path), mode: ruleMode, sizes: sizes))
@@ -238,12 +294,13 @@ enum OrphanFinder {
 
     static let ignoredPrefixes = ["com.apple.", "group.", "systemgroup.", "com.nearbycoder.scrub"]
 
-    static func find(installed: Set<String>, fullDiskAccess: Bool) -> [CleanItem] {
+    /// Paths that look like data from apps that are no longer installed. Sizes are measured later.
+    static func candidates(installed: Set<String>, fullDiskAccess: Bool) -> [String] {
         let installedPrefixes = Set(installed.map { vendorProduct($0) })
         // Data from a vendor that still has an app installed is often shared or migrated; leave it alone.
         let installedVendors = Set(installed.filter { !$0.hasPrefix("com.apple.") }.map { vendor($0) })
         let cutoff = Date().addingTimeInterval(-15 * 86_400)
-        var items: [CleanItem] = []
+        var found: [String] = []
         for (dir, suffix) in locations {
             if !fullDiskAccess && SystemAccess.isPrivacyProtected(Paths.expand(dir) + "/") { continue }
             for path in Paths.children(of: Paths.expand(dir)) {
@@ -260,12 +317,10 @@ enum OrphanFinder {
                 let modified = Paths.isDirectory(path) ? FileSizer.shallowLastModified(URL(fileURLWithPath: path)) : Paths.modificationDate(path)
                 if let modified, modified > cutoff { continue }
                 guard PathGuard.isAllowed(path) else { continue }
-                let size = FileSizer.allocatedSize(atPath: path)
-                if size < 4096 { continue }
-                items.append(CleanItem(path: path, size: size, modified: modified))
+                found.append(path)
             }
         }
-        return items
+        return found
     }
 
     static func isBundleIdentifier(_ s: String) -> Bool {

@@ -1,42 +1,40 @@
 import SwiftUI
+import Charts
 
 struct StatusView: View {
     @Environment(AppState.self) private var state
-    @State private var sortByMemory = false
+    @State private var sortOrder = [KeyPathComparator(\ProcessSample.cpu, order: .reverse)]
+    @State private var selection: ProcessSample.ID?
     @State private var pendingKill: (ProcessSample, Bool)?
 
     private var m: SystemMonitor { state.monitor }
 
     var body: some View {
-        Page(spacing: 16) {
-            SectionHeader(section: .status) {
-                HStack(spacing: 10) {
-                    RingGauge(progress: Double(m.healthScore) / 100, colors: healthColors, lineWidth: 6) {
-                        Text("\(m.healthScore)").font(.headline.monospacedDigit())
+        VSplitView {
+            ScrollView {
+                Grid(horizontalSpacing: 14, verticalSpacing: 14) {
+                    GridRow {
+                        cpu
+                        memory
+                        gpuOrDisk
                     }
-                    .frame(width: 46, height: 46)
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text("Health").font(.caption).foregroundStyle(.secondary)
-                        Text(m.healthSummary).font(.headline)
+                    GridRow {
+                        disk
+                        network
+                        power
                     }
                 }
-                .padding(.horizontal, 14).padding(.vertical, 8)
-                .glassEffect(.regular, in: .capsule)
+                .padding(16)
             }
-
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 16)], spacing: 16) {
-                cpuCard
-                memoryCard
-                diskCard
-                networkCard
-                if m.gpuUsage != nil { gpuCard }
-                powerCard
-            }
+            .frame(minHeight: 260, idealHeight: 420)
             processes
+                .frame(minHeight: 180)
         }
-        .onAppear { m.processesEnabled = true }
-        .onDisappear { m.processesEnabled = false }
-        .confirmationDialog("\(pendingKill?.1 == true ? "Force quit" : "Quit") \(pendingKill?.0.name ?? "")?",
+        .navigationTitle("Activity")
+        .navigationSubtitle("Health \(m.healthScore) · \(m.healthSummary)")
+        .onAppear { m.acquire("status"); m.acquire("processes") }
+        .onDisappear { m.release("status"); m.release("processes") }
+        .confirmationDialog("\(pendingKill?.1 == true ? "Force quit" : "Quit") “\(pendingKill?.0.name ?? "")”?",
                             isPresented: Binding(get: { pendingKill != nil }, set: { if !$0 { pendingKill = nil } })) {
             Button(pendingKill?.1 == true ? "Force Quit" : "Quit", role: .destructive) {
                 if let (p, force) = pendingKill { kill(p.pid, force ? SIGKILL : SIGTERM) }
@@ -45,130 +43,106 @@ struct StatusView: View {
         } message: { Text("Unsaved changes in this process may be lost.") }
     }
 
-    private var healthColors: [Color] {
-        m.healthScore >= 75 ? [.green, .teal] : m.healthScore >= 55 ? [.yellow, .orange] : [.orange, .red]
-    }
-
-    private func card<Content: View>(_ title: String, _ symbol: String, _ colors: [Color], value: String,
+    private func panel<Content: View>(_ title: String, _ symbol: String, value: String,
                                       @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                IconBadge(symbol: symbol, colors: colors, size: 28)
-                Text(title).font(.headline)
-                Spacer()
-                Text(value).font(.system(size: 22, weight: .bold, design: .rounded)).monospacedDigit()
-                    .contentTransition(.numericText())
+        GroupBox {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline) {
+                    Label(title, systemImage: symbol).font(.headline)
+                    Spacer()
+                    Text(value)
+                        .font(.title3.weight(.semibold))
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                }
+                content()
             }
-            content()
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(4)
         }
-        .padding(18)
-        .frame(maxWidth: .infinity, minHeight: 200, alignment: .topLeading)
-        .glassEffect(.regular, in: .rect(cornerRadius: 24))
     }
 
-    private var cpuCard: some View {
-        card("CPU", "cpu.fill", [.green, .teal], value: m.cpuUsage.percent) {
-            Sparkline(values: m.cpuHistory, color: .teal, maxValue: 1).frame(height: 60)
-            HStack(alignment: .bottom, spacing: 3) {
+    private var cpu: some View {
+        panel("CPU", "cpu", value: m.cpuUsage.percent) {
+            Sparkline(values: m.cpuHistory, color: .green, maxValue: 1).frame(height: 54)
+            HStack(alignment: .bottom, spacing: 2) {
                 ForEach(Array(m.coreUsage.enumerated()), id: \.offset) { _, u in
                     ZStack(alignment: .bottom) {
-                        RoundedRectangle(cornerRadius: 2).fill(.primary.opacity(0.07))
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(LinearGradient(colors: [.teal, u > 0.7 ? .orange : .green], startPoint: .bottom, endPoint: .top))
-                            .frame(height: max(2, 30 * u))
+                        Rectangle().fill(.quaternary)
+                        Rectangle().fill(u > 0.75 ? Color.orange : Color.green).frame(height: max(1, 22 * u))
                     }
-                    .frame(maxWidth: 14, maxHeight: 30)
+                    .frame(height: 22)
+                    .clipShape(.rect(cornerRadius: 1.5))
                 }
             }
-            .frame(height: 30)
-            .animation(.smooth, value: m.coreUsage)
-            Text(String(format: "%d cores · load %.2f  %.2f  %.2f", m.coreUsage.count, m.loadAverage.0, m.loadAverage.1, m.loadAverage.2))
-                .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+            Text(String(format: "%d cores · load %.2f, %.2f, %.2f", m.coreUsage.count, m.loadAverage.0, m.loadAverage.1, m.loadAverage.2))
+                .font(.caption).foregroundStyle(.secondary).monospacedDigit()
         }
     }
 
-    private var memoryCard: some View {
-        card("Memory", "memorychip.fill", [.purple, .indigo], value: m.memoryFraction.percent) {
-            Sparkline(values: m.memoryHistory, color: .purple, maxValue: 1).frame(height: 60)
-            GeometryReader { geo in
-                let total = max(1, Double(m.memoryTotal))
-                HStack(spacing: 2) {
-                    ForEach(Array([(m.memoryApp, Color.purple), (m.memoryWired, .indigo), (m.memoryCompressed, .pink)].enumerated()), id: \.offset) { _, seg in
-                        Rectangle().fill(seg.1).frame(width: max(0, geo.size.width * Double(seg.0) / total))
-                    }
-                    Rectangle().fill(.primary.opacity(0.1))
-                }
-            }
-            .frame(height: 8)
-            .clipShape(.capsule)
-            HStack(spacing: 12) {
-                legend("App", m.memoryApp, .purple)
-                legend("Wired", m.memoryWired, .indigo)
-                legend("Compressed", m.memoryCompressed, .pink)
-            }
-            Text("\(m.memoryUsed.formattedBytes) of \(m.memoryTotal.formattedBytes) · Pressure \(m.pressureLabel) · Swap \(m.swapUsed.formattedBytes)")
+    private var memory: some View {
+        panel("Memory", "memorychip", value: m.memoryUsed.formattedBytes) {
+            Sparkline(values: m.memoryHistory, color: m.memoryPressure >= 2 ? .orange : .purple, maxValue: 1).frame(height: 54)
+            StorageBar(segments: [
+                .init(id: "app", label: "App", bytes: m.memoryApp, color: .purple),
+                .init(id: "wired", label: "Wired", bytes: m.memoryWired, color: .indigo),
+                .init(id: "compressed", label: "Compressed", bytes: m.memoryCompressed, color: .pink),
+            ], total: m.memoryTotal, height: 8)
+            Text("Pressure \(m.pressureLabel.lowercased()) · swap \(m.swapUsed.formattedBytes) · \(m.memoryTotal.formattedBytes) installed")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }
 
-    private func legend(_ label: String, _ bytes: Int64, _ color: Color) -> some View {
-        HStack(spacing: 4) {
-            Circle().fill(color).frame(width: 7, height: 7)
-            Text("\(label) \(bytes.formattedBytes)").font(.caption).foregroundStyle(.secondary)
+    @ViewBuilder private var gpuOrDisk: some View {
+        if let gpu = m.gpuUsage {
+            panel("GPU", "square.stack.3d.up", value: gpu.percent) {
+                Sparkline(values: m.gpuHistory, color: .orange, maxValue: 1).frame(height: 54)
+                Text("Device utilization").font(.caption).foregroundStyle(.secondary)
+            }
+        } else {
+            panel("Thermal", "thermometer.medium", value: thermalLabel) {
+                Text("macOS reports the thermal state as \(thermalLabel.lowercased()).").font(.caption).foregroundStyle(.secondary)
+            }
         }
     }
 
-    private var diskCard: some View {
-        card("Disk", "internaldrive.fill", AppSection.analyze.colors, value: m.diskFraction.percent) {
-            Sparkline(values: m.diskHistory, color: .blue).frame(height: 60)
-            MeterBar(fraction: m.diskFraction, colors: AppSection.analyze.colors)
+    private var disk: some View {
+        panel("Disk", "internaldrive", value: (m.diskReadRate + m.diskWriteRate).formattedRate) {
+            Sparkline(values: m.diskHistory, color: .teal).frame(height: 54)
             HStack {
-                Label(m.diskReadRate.formattedRate, systemImage: "arrow.down.doc").font(.caption.monospacedDigit())
-                Label(m.diskWriteRate.formattedRate, systemImage: "arrow.up.doc").font(.caption.monospacedDigit())
-                Spacer()
+                Text("Read \(m.diskReadRate.formattedRate)")
+                Text("Write \(m.diskWriteRate.formattedRate)")
             }
-            .foregroundStyle(.secondary)
+            .font(.caption).foregroundStyle(.secondary).monospacedDigit()
             Text("\(m.diskFree.formattedBytes) available of \(m.diskTotal.formattedBytes)").font(.caption).foregroundStyle(.secondary)
         }
     }
 
-    private var networkCard: some View {
-        card("Network", "network", [.blue, .cyan], value: m.netDownRate.formattedRate) {
+    private var network: some View {
+        let peak = max(m.netDownHistory.max() ?? 0, m.netUpHistory.max() ?? 0, 16 * 1024)
+        return panel("Network", "network", value: m.netDownRate.formattedRate) {
             ZStack {
-                Sparkline(values: m.netDownHistory, color: .cyan, maxValue: max(m.netDownHistory.max() ?? 1, m.netUpHistory.max() ?? 1, 1024))
-                Sparkline(values: m.netUpHistory, color: .orange, maxValue: max(m.netDownHistory.max() ?? 1, m.netUpHistory.max() ?? 1, 1024))
-                    .opacity(0.8)
+                Sparkline(values: m.netDownHistory, color: .blue, maxValue: peak)
+                Sparkline(values: m.netUpHistory, color: .orange, maxValue: peak)
             }
-            .frame(height: 80)
-            HStack(spacing: 16) {
-                Label("Down \(m.netDownRate.formattedRate)", systemImage: "arrow.down").foregroundStyle(.cyan)
-                Label("Up \(m.netUpRate.formattedRate)", systemImage: "arrow.up").foregroundStyle(.orange)
+            .frame(height: 54)
+            HStack(spacing: 12) {
+                Label(m.netDownRate.formattedRate, systemImage: "arrow.down").foregroundStyle(.blue)
+                Label(m.netUpRate.formattedRate, systemImage: "arrow.up").foregroundStyle(.orange)
             }
-            .font(.caption.monospacedDigit())
+            .font(.caption).monospacedDigit()
         }
     }
 
-    private var gpuCard: some View {
-        card("GPU", "square.stack.3d.up.fill", [.orange, .pink], value: (m.gpuUsage ?? 0).percent) {
-            Sparkline(values: m.gpuHistory, color: .pink, maxValue: 1).frame(height: 100)
-        }
-    }
-
-    private var powerCard: some View {
-        card(m.battery == nil ? "System" : "Battery", m.battery?.isCharging == true ? "battery.100.bolt" : "bolt.fill",
-             [.yellow, .orange], value: m.battery.map { "\($0.level)%" } ?? m.uptime.uptimeDescription) {
-            VStack(alignment: .leading, spacing: 8) {
+    private var power: some View {
+        panel(m.battery == nil ? "System" : "Battery", m.battery == nil ? "power" : "battery.75percent",
+              value: m.battery.map { "\($0.level)%" } ?? m.uptime.uptimeDescription) {
+            Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 6) {
                 if let b = m.battery {
-                    MeterBar(fraction: Double(b.level) / 100, colors: b.level < 20 ? [.red, .orange] : [.yellow, .green], height: 10)
-                    Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
-                        GridRow { info("Status", b.isCharging ? "Charging" : (b.isPluggedIn ? "Plugged in" : "On battery")); info("Health", b.health.map { "\($0)%" } ?? "—") }
-                        GridRow { info("Cycles", b.cycleCount.map(String.init) ?? "—"); b.temperature.map { info("Temp", String(format: "%.1f °C", $0)) } ?? info("Condition", b.condition ?? "Normal") }
-                        GridRow { info("Power", b.watts.map { String(format: "%.1f W", $0) } ?? "—"); info("Remaining", b.timeRemaining.map { "\($0 / 60)h \($0 % 60)m" } ?? "—") }
-                    }
+                    GridRow { info("Status", b.isCharging ? "Charging" : (b.isPluggedIn ? "Plugged in" : "On battery")); info("Health", b.health.map { "\($0)%" } ?? "—") }
+                    GridRow { info("Cycles", b.cycleCount.map(String.init) ?? "—"); info("Power", b.watts.map { String(format: "%.1f W", $0) } ?? "—") }
                 }
-                Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
-                    GridRow { info("Thermal", thermalLabel); info("Uptime", m.uptime.uptimeDescription) }
-                }
+                GridRow { info("Thermal", thermalLabel); info("Uptime", m.uptime.uptimeDescription) }
             }
         }
     }
@@ -186,60 +160,67 @@ struct StatusView: View {
     private func info(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(label).font(.caption).foregroundStyle(.secondary)
-            Text(value).font(.callout.weight(.medium).monospacedDigit())
+            Text(value).font(.callout).monospacedDigit()
         }
     }
 
     // MARK: Processes
 
     private var processes: some View {
-        let list = sortByMemory ? m.topProcesses.sorted { $0.memory > $1.memory } : m.topProcesses
-        return VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Top Processes").font(.headline)
-                Spacer()
-                Picker("", selection: $sortByMemory) {
-                    Text("CPU").tag(false)
-                    Text("Memory").tag(true)
-                }
-                .pickerStyle(.segmented).labelsHidden().frame(width: 160)
-            }
-            .padding(18)
-            Divider()
-            if list.isEmpty {
-                ProgressView().frame(maxWidth: .infinity).padding(30)
-            }
-            ForEach(list.prefix(12)) { p in
-                HStack(spacing: 12) {
-                    processIcon(p)
+        Table(m.topProcesses.sorted(using: sortOrder), selection: $selection, sortOrder: $sortOrder) {
+            TableColumn("Process", value: \.name) { p in
+                HStack(spacing: 6) {
+                    ProcessIcon(pid: p.pid)
                     Text(p.name).lineLimit(1)
-                    Text("\(p.pid)").font(.caption.monospacedDigit()).foregroundStyle(.tertiary)
-                    Spacer()
-                    MeterBar(fraction: min(1, p.cpu / 100), colors: [.green, .teal], height: 5).frame(width: 80)
-                    Text(String(format: "%.1f%%", p.cpu)).font(.callout.monospacedDigit()).frame(width: 60, alignment: .trailing)
-                    Text(p.memory.formattedBytes).font(.callout.monospacedDigit()).foregroundStyle(.secondary).frame(width: 80, alignment: .trailing)
-                }
-                .padding(.horizontal, 18)
-                .padding(.vertical, 6)
-                .contextMenu {
-                    Button("Copy Name") { SystemAccess.copyToPasteboard(p.name) }
-                    Button("Copy PID") { SystemAccess.copyToPasteboard("\(p.pid)") }
-                    Divider()
-                    Button("Quit…") { pendingKill = (p, false) }
-                    Button("Force Quit…", role: .destructive) { pendingKill = (p, true) }
                 }
             }
+            .width(min: 180, ideal: 260)
+            TableColumn("% CPU", value: \.cpu) { p in
+                Text(p.cpu, format: .number.precision(.fractionLength(1))).monospacedDigit()
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            .width(min: 60, ideal: 70, max: 90)
+            TableColumn("Memory", value: \.memory) { p in SizeText(bytes: p.memory) }
+                .width(min: 70, ideal: 90, max: 110)
+            TableColumn("PID", value: \.pid) { p in
+                Text(String(p.pid)).monospacedDigit().foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            .width(min: 50, ideal: 60, max: 80)
+            TableColumn("User", value: \.user) { p in Text(p.user).foregroundStyle(.secondary) }
+                .width(min: 60, ideal: 90, max: 130)
         }
-        .padding(.bottom, 10)
-        .glassEffect(.regular, in: .rect(cornerRadius: 24))
-        .animation(.smooth, value: list.map(\.pid))
+        .contextMenu(forSelectionType: ProcessSample.ID.self) { ids in
+            if let pid = ids.first, let p = m.topProcesses.first(where: { $0.pid == pid }) {
+                Button("Copy Name") { SystemAccess.copyToPasteboard(p.name) }
+                Button("Copy PID") { SystemAccess.copyToPasteboard(String(p.pid)) }
+                Divider()
+                Button("Quit…") { pendingKill = (p, false) }
+                Button("Force Quit…", role: .destructive) { pendingKill = (p, true) }
+            }
+        }
+        .overlay { if m.topProcesses.isEmpty { ProgressView() } }
     }
+}
 
-    @ViewBuilder private func processIcon(_ p: ProcessSample) -> some View {
-        if let app = NSRunningApplication(processIdentifier: p.pid), let icon = app.icon {
-            Image(nsImage: icon).resizable().frame(width: 20, height: 20)
+private struct ProcessIcon: View {
+    let pid: Int32
+    var body: some View {
+        if let icon = ProcessIconCache.icon(for: pid) {
+            Image(nsImage: icon).resizable().frame(width: 16, height: 16)
         } else {
-            Image(systemName: "gearshape").frame(width: 20, height: 20).foregroundStyle(.secondary)
+            Image(systemName: "gearshape").foregroundStyle(.tertiary).frame(width: 16, height: 16)
         }
+    }
+}
+
+enum ProcessIconCache {
+    private static var cache: [Int32: NSImage?] = [:]
+    static func icon(for pid: Int32) -> NSImage? {
+        if let hit = cache[pid] { return hit }
+        let icon = NSRunningApplication(processIdentifier: pid)?.icon
+        if cache.count > 2000 { cache.removeAll() }
+        cache[pid] = icon
+        return icon
     }
 }

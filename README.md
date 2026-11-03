@@ -17,35 +17,53 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/overview.png" alt="Scrub overview" width="860">
+  <a href="https://nearbycoder.github.io/scrub/media/scrub-demo.mp4">
+    <img src="docs/media/scrub-demo.gif" alt="Scrub demo: Smart Clean, Space Lens, Applications, Project Purge, Maintenance and Activity" width="860">
+  </a>
+  <br><sub><a href="https://nearbycoder.github.io/scrub/media/scrub-demo.mp4">Watch the full demo (MP4, 84 seconds)</a></sub>
 </p>
 
 ## Features
 
 | | |
 |---|---|
-| **Smart Clean** | User and system caches, logs, crash reports, temporary files, browser caches (Safari, Chrome, Edge, Brave, Arc, Firefox, Opera, Vivaldi), developer junk (Xcode DerivedData, simulator caches, device support, Homebrew, npm, Yarn, pnpm, Bun, pip, uv, CocoaPods, Gradle, Cargo, Go), chat and AI app caches, old installers, leftovers of removed apps and the Trash. Every item can be reviewed before anything is removed. |
-| **Uninstaller** | Removes an app together with its Application Support, Caches, Preferences, Containers, Group Containers, Saved State, WebKit data, Cookies, HTTP storage, Launch Agents/Daemons, privileged helpers and Dock tile. You can also reset an app's data and keep the app. Everything goes to the Trash. |
-| **Space Lens** | An interactive treemap of any folder or drive. You can drill down, use breadcrumbs, see the largest files (with an "unused for a year" flag), reveal items in Finder or move them to the Trash. |
-| **Optimize** | Rebuilds the Quick Look and Launch Services caches, removes broken launch agents, repairs damaged preference files, clears the download history log, resets font caches, compacts Mail's index, deletes unavailable simulators and runs Homebrew cleanup. It can also flush DNS, free memory, thin Time Machine snapshots, rebuild the icon cache, repair home folder permissions and reindex Spotlight. Admin tasks share **one** password prompt. |
+| **Smart Clean** | Covers user and system caches, logs, crash reports, temporary files, browser caches (Safari, Chrome, Edge, Brave, Arc, Firefox, Opera, Vivaldi), developer junk (Xcode DerivedData, simulator caches, device support, Homebrew, npm, Yarn, pnpm, Bun, pip, uv, CocoaPods, Gradle, Cargo, Go), chat and AI app caches, old installers, leftovers from deleted apps, and the Trash. Results appear in an outline with tri-state checkboxes, so you can review every item before anything is removed. |
+| **Applications** | A sortable, searchable table of your apps. The inspector lists everything an app leaves behind (Application Support, Caches, Preferences, Containers, Saved State, WebKit, Cookies, HTTP storage, Launch Agents and Daemons, privileged helpers, and vendor folders like `Google/Chrome`). You can uninstall the app or just reset its data. Everything goes to the Trash. |
+| **Space Lens** | A treemap of any folder or drive, with back and forward navigation, a Finder-style path bar, and a largest-files table. You can show items in Finder or move them to the Trash. |
+| **Maintenance** | Rebuilds the Quick Look and Launch Services caches, removes broken launch agents, repairs damaged preference files, clears the download history log, resets font caches, compacts Mail's index, deletes unavailable simulators and runs Homebrew cleanup. It can also flush DNS, free memory, thin Time Machine snapshots, rebuild the icon cache, repair home folder permissions and reindex Spotlight. Admin tasks share **one** password prompt. |
 | **Touch ID for sudo** | One switch writes `/etc/pam.d/sudo_local`, which survives macOS updates. |
-| **Live Status** | CPU (per core), memory breakdown and pressure, swap, disk usage and I/O, network throughput, GPU, battery health, cycles and power, thermal state, uptime, and top processes you can quit. The window also shows a health score. |
+| **Activity** | CPU (per core), memory breakdown and pressure, swap, disk I/O, network, GPU, battery health, cycle count and power, plus a process table you can sort and quit processes from. |
 | **Project Purge** | Finds `node_modules`, `target`, `.build`, `build`, `dist`, `.next`, `DerivedData`, `__pycache__`, `venv`, `Pods` and more across your project folders. Folders that git tracks are protected, and recently active projects start unselected. |
-| **Installers** | Finds `.dmg`, `.pkg`, `.iso`, `.xip` and installer `.zip` files in Downloads, Desktop, Documents, iCloud Drive, Mail, Telegram and the Homebrew cache. |
-| **Menu bar** | Live stats at a glance, Smart Scan and Free RAM. |
+| **Installers** | Finds `.dmg`, `.pkg`, `.iso`, `.xip` and installer `.zip` files in Downloads, Desktop, Documents, iCloud Drive, Mail and the Homebrew cache. |
+| **Menu bar** | Live meters, Smart Scan and Free Up Memory. |
 | **History** | A log of every cleanup: what was removed, from where, and how much space it freed. |
+
+### Native by design
+
+Scrub uses standard macOS building blocks: a source-list sidebar, unified toolbars with titles and subtitles, `Table` outlines with sortable columns, inspectors, grouped forms, and the system's empty and progress states. Liquid Glass appears only where macOS uses it, on the control layer: the toolbar, the sidebar, and floating controls such as the action bar and the Space Lens hover label. Content stays plain and readable.
+
+### Fast
+
+- **Parallel disk walker.** Scrub reads directories with `getattrlistbulk(2)`, which returns names, types, sizes and dates for a whole batch of entries in one system call. Work is spread over a pool of threads, and hard links are counted once. Mapping a 240 GB `~/Library` with about 900,000 files takes about 12 s, against 35 s for an `fts` walk and 46 s for `du`.
+- **One pass for Smart Clean.** Every rule's candidates are listed first, then measured together in a single parallel walk, which covers about 700,000 files in roughly 15 s.
+- **Cheap treemap.** The treemap is drawn in a single `Canvas`. Layout is computed once per folder and size, and hovering only redraws a highlight.
+- **Idle means idle.** Live sampling runs only while Overview, Activity or the menu bar panel is open. Process stats come from `libproc` instead of spawning `ps`, and unchanged values don't trigger redraws. With no window showing live data, Scrub sits at 0% CPU.
 
 <table>
   <tr>
+    <td><img src="docs/screenshots/overview.png" alt="Overview"></td>
     <td><img src="docs/screenshots/clean.png" alt="Smart Clean"></td>
+  </tr>
+  <tr>
     <td><img src="docs/screenshots/analyze.png" alt="Space Lens"></td>
+    <td><img src="docs/screenshots/uninstall.png" alt="Applications"></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/uninstall.png" alt="Uninstaller"></td>
-    <td><img src="docs/screenshots/status.png" alt="Live Status"></td>
+    <td><img src="docs/screenshots/status.png" alt="Activity"></td>
+    <td><img src="docs/screenshots/optimize.png" alt="Maintenance"></td>
   </tr>
   <tr>
-    <td colspan="2"><img src="docs/screenshots/optimize.png" alt="Optimize"></td>
+    <td colspan="2"><img src="docs/screenshots/purge.png" alt="Project Purge" width="50%"></td>
   </tr>
 </table>
 
@@ -111,6 +129,10 @@ docs/          GitHub Pages site
 ```
 
 Cleanup rules live in [`CleanCatalog.swift`](Scrub/Features/Clean/CleanCatalog.swift), so adding support for another app is usually a few lines. Pull requests are welcome.
+
+### Demo mode
+
+`Scrub.app/Contents/MacOS/Scrub -demo YES` plays a captioned tour of the app, which is how the video above was recorded. It never cleans real files. Project Purge only runs against folders you pass with `-projectRoots '("/path/to/sample/projects")'`.
 
 ## Releasing
 
