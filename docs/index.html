@@ -1,0 +1,753 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Scrub — Free, open-source Mac cleaner</title>
+<meta name="description" content="Scrub is a free, open-source Mac cleaner built natively in SwiftUI with Liquid Glass. Clean caches, uninstall apps completely, explore disk usage, and optimize macOS 26 Tahoe.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#eef2fb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#070917" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.png">
+<meta property="og:image" content="https://nearbycoder.github.io/scrub/screenshots/overview.png">
+<link rel="canonical" href="https://nearbycoder.github.io/scrub/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Scrub — Free, open-source Mac cleaner">
+<meta property="og:description" content="A native SwiftUI Mac cleaner with Liquid Glass. Free and MIT licensed.">
+<meta property="og:url" content="https://nearbycoder.github.io/scrub/">
+<meta name="twitter:card" content="summary">
+<style>
+:root{
+  color-scheme:light dark;
+  --bg:#eef2fb;
+  --text:#0b1026;
+  --text-2:#363d5c;
+  --text-3:#545b7a;
+  --glass:rgba(255,255,255,.55);
+  --glass-2:rgba(255,255,255,.72);
+  --border:rgba(255,255,255,.75);
+  --line:rgba(20,28,64,.09);
+  --hl:rgba(255,255,255,.95);
+  --shadow:0 1px 2px rgba(15,23,42,.05),0 18px 50px -18px rgba(40,50,120,.28);
+  --card:rgba(255,255,255,.6);
+  --sel:rgba(79,70,229,.13);
+  --chip:rgba(255,255,255,.65);
+  --code:rgba(12,18,44,.06);
+  --b1:rgba(45,212,191,.55);--b2:rgba(99,102,241,.42);--b3:rgba(167,139,250,.45);--b4:rgba(34,211,238,.4);
+  --grad-text:linear-gradient(100deg,#0f766e 0%,#1d4ed8 48%,#6d28d9 100%);
+  --btn:linear-gradient(135deg,#0f766e 0%,#3730a3 60%,#5b21b6 100%);
+  --ring-track:rgba(20,28,64,.08);
+  --ok:#047857;--warn:#a16207;
+  --radius:24px;
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue","Inter","Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#070917;
+    --text:#f1f3fc;
+    --text-2:rgba(228,233,255,.8);
+    --text-3:rgba(222,228,255,.64);
+    --glass:rgba(255,255,255,.055);
+    --glass-2:rgba(255,255,255,.09);
+    --border:rgba(255,255,255,.12);
+    --line:rgba(255,255,255,.08);
+    --hl:rgba(255,255,255,.16);
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 24px 60px -20px rgba(0,0,0,.6);
+    --card:rgba(255,255,255,.05);
+    --sel:rgba(129,140,248,.2);
+    --chip:rgba(255,255,255,.07);
+    --code:rgba(0,0,0,.32);
+    --b1:rgba(13,148,136,.55);--b2:rgba(79,70,229,.5);--b3:rgba(124,58,237,.45);--b4:rgba(8,145,178,.45);
+    --grad-text:linear-gradient(100deg,#5eead4 0%,#93c5fd 48%,#c4b5fd 100%);
+    --ring-track:rgba(255,255,255,.08);
+    --ok:#6ee7b7;--warn:#fcd34d;
+  }
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth;scroll-padding-top:90px}
+body{margin:0;font-family:var(--font);color:var(--text);background:var(--bg);line-height:1.55;font-size:17px;-webkit-font-smoothing:antialiased;overflow-x:hidden;overflow-x:clip}
+img,svg{display:block}
+a{color:inherit}
+h1,h2,h3{line-height:1.08;letter-spacing:-.025em;margin:0}
+p{margin:0}
+code,kbd{font-family:var(--mono)}
+.sr{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.skip{position:absolute;left:16px;top:-60px;z-index:100;padding:10px 16px;border-radius:12px;background:var(--text);color:var(--bg);font-weight:600;text-decoration:none}
+.skip:focus{top:16px}
+:focus-visible{outline:2px solid #6366f1;outline-offset:3px;border-radius:8px}
+
+/* Backdrop */
+.bg{position:fixed;inset:0;z-index:-1;background:var(--bg);overflow:hidden;pointer-events:none}
+.bg i{position:absolute;border-radius:50%;width:70vmax;height:70vmax;will-change:transform}
+.bg i:nth-child(1){background:radial-gradient(closest-side,var(--b1),transparent);left:-22vmax;top:-26vmax;animation:drift1 28s ease-in-out infinite alternate}
+.bg i:nth-child(2){background:radial-gradient(closest-side,var(--b2),transparent);right:-24vmax;top:-10vmax;animation:drift2 34s ease-in-out infinite alternate}
+.bg i:nth-child(3){background:radial-gradient(closest-side,var(--b3),transparent);left:10vmax;bottom:-40vmax;animation:drift3 30s ease-in-out infinite alternate}
+.bg i:nth-child(4){background:radial-gradient(closest-side,var(--b4),transparent);right:-10vmax;bottom:-30vmax;width:50vmax;height:50vmax;animation:drift1 40s ease-in-out infinite alternate-reverse}
+.bg::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 0%,var(--bg) 120%)}
+@keyframes drift1{to{transform:translate(8vmax,6vmax) scale(1.08)}}
+@keyframes drift2{to{transform:translate(-10vmax,8vmax) scale(1.12)}}
+@keyframes drift3{to{transform:translate(6vmax,-8vmax) scale(.94)}}
+
+/* Glass */
+.glass{background:var(--glass);-webkit-backdrop-filter:blur(28px) saturate(170%);backdrop-filter:blur(28px) saturate(170%);border:1px solid var(--border);box-shadow:inset 0 1px 0 var(--hl),var(--shadow);border-radius:var(--radius)}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.glass{background:var(--glass-2)}}
+@media (prefers-reduced-transparency:reduce){:root{--glass:color-mix(in srgb,var(--bg) 92%,#888);--glass-2:var(--glass)}}
+
+.wrap{width:100%;max-width:1160px;margin:0 auto;padding:0 24px}
+section{padding:96px 0}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;letter-spacing:.02em;color:var(--text-2);padding:6px 12px 6px 8px;border-radius:999px}
+.eyebrow b{display:inline-grid;place-items:center;height:20px;padding:0 8px;border-radius:999px;background:var(--btn);color:#fff;font-size:11px;letter-spacing:.04em}
+.kicker{font-size:14px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;background:var(--grad-text);-webkit-background-clip:text;background-clip:text;color:transparent;display:inline-block;margin-bottom:14px}
+.h2{font-size:clamp(32px,4.6vw,52px);font-weight:750}
+.lede{font-size:clamp(17px,1.6vw,20px);color:var(--text-2);max-width:640px}
+.grad{background:var(--grad-text);-webkit-background-clip:text;background-clip:text;color:transparent}
+.center{text-align:center}.center .lede{margin-left:auto;margin-right:auto}
+.head{margin-bottom:48px}.head .lede{margin-top:16px}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:48px;padding:0 22px;border-radius:999px;font:inherit;font-size:16px;font-weight:600;text-decoration:none;cursor:pointer;border:1px solid transparent;transition:transform .2s ease,box-shadow .2s ease,background .2s}
+.btn svg{width:18px;height:18px;flex:none}
+.btn-p{background:var(--btn);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 10px 30px -10px rgba(67,56,202,.7)}
+.btn-p:hover{transform:translateY(-1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 16px 40px -12px rgba(67,56,202,.8)}
+.btn-g{color:var(--text);background:var(--glass);-webkit-backdrop-filter:blur(20px) saturate(160%);backdrop-filter:blur(20px) saturate(160%);border-color:var(--border);box-shadow:inset 0 1px 0 var(--hl)}
+.btn-g:hover{background:var(--glass-2);transform:translateY(-1px)}
+.btn small{font-weight:500;opacity:.78;font-size:13px}
+
+/* Nav */
+.nav{position:sticky;top:12px;z-index:50;margin:12px auto 0;max-width:1160px;padding:0 16px}
+.nav .glass{display:flex;align-items:center;gap:16px;padding:8px 8px 8px 16px;border-radius:999px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:18px;text-decoration:none;letter-spacing:-.01em}
+.brand svg{width:30px;height:30px;filter:drop-shadow(0 4px 10px rgba(59,130,246,.35))}
+.nav nav{margin-left:auto}.nav ul{display:flex;gap:4px;list-style:none;margin:0;padding:0}
+.nav ul a{display:block;padding:8px 14px;border-radius:999px;font-size:15px;font-weight:500;color:var(--text-2);text-decoration:none}
+.nav ul a:hover{color:var(--text);background:var(--chip)}
+.nav .btn{min-height:40px;padding:0 16px;font-size:15px}
+
+/* Hero */
+.hero{padding:88px 0 40px;text-align:center}
+.hero h1{font-size:clamp(44px,8.4vw,96px);font-weight:800;letter-spacing:-.045em;margin:22px auto 22px;max-width:14ch}
+.hero .lede{margin:0 auto;max-width:680px}
+.ctas{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:34px}
+.meta{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 20px;margin-top:22px;font-size:14px;color:var(--text-3);list-style:none;padding:0}
+.meta li{display:flex;align-items:center;gap:6px}
+.meta svg{width:15px;height:15px;color:var(--ok)}
+
+/* Mockup */
+.stage{position:relative;margin:64px auto 0;max-width:1040px}
+.stage::before{content:"";position:absolute;inset:8% 6% -4%;background:radial-gradient(closest-side,rgba(99,102,241,.45),transparent);filter:blur(40px);z-index:-1}
+.win{display:grid;grid-template-columns:216px 1fr;text-align:left;border-radius:26px;padding:8px;min-height:480px;font-size:13px}
+.side{border-radius:19px;padding:14px 10px;background:var(--glass-2);border:1px solid var(--line);box-shadow:inset 0 1px 0 var(--hl)}
+.lights{display:flex;gap:8px;padding:2px 6px 16px}
+.lights i{width:12px;height:12px;border-radius:50%;background:#ff5f57;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.2)}
+.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+.side ul{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.side li{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:10px;color:var(--text-2);font-weight:500}
+.side li.on{background:var(--sel);color:var(--text)}
+.side li span{width:20px;height:20px;border-radius:6px;background:linear-gradient(135deg,var(--c1),var(--c2));box-shadow:inset 0 1px 0 rgba(255,255,255,.4);flex:none}
+.side .sec{font-size:11px;font-weight:600;color:var(--text-3);padding:12px 10px 4px;letter-spacing:.02em}
+.main{padding:18px 20px 20px 24px;min-width:0}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+.top h3{font-size:22px;letter-spacing:-.02em}
+.top p{color:var(--text-3);font-size:13px;margin-top:2px}
+.scan{display:inline-flex;align-items:center;gap:8px;padding:9px 18px;border-radius:999px;background:var(--btn);color:#fff;font-weight:600;font-size:13px;box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 8px 20px -8px rgba(67,56,202,.8);white-space:nowrap}
+.scan svg{width:14px;height:14px}
+.mgrid{display:grid;grid-template-columns:1.15fr 1fr 1fr;gap:12px}
+.mc{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px;box-shadow:inset 0 1px 0 var(--hl);min-width:0}
+.mc h4{margin:0 0 4px;font-size:12px;font-weight:600;color:var(--text-3)}
+.big{font-size:30px;font-weight:750;letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1.1}
+.big small{font-size:14px;font-weight:600;color:var(--text-3);margin-left:2px}
+.ringc{grid-row:span 2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center}
+.ring{position:relative;width:148px;height:148px}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring .val{position:absolute;inset:0;display:grid;place-content:center;text-align:center}
+.ring .val b{font-size:32px;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.ring .val span{font-size:12px;color:var(--text-3);font-weight:500}
+.arc{stroke-dasharray:100;stroke-dashoffset:32;transition:stroke-dashoffset 1.6s cubic-bezier(.2,.8,.2,1)}
+.js .arc{stroke-dashoffset:100}.js .in .arc,.js .arc.go{stroke-dashoffset:32}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--text-2)}.legend span{white-space:nowrap}
+.legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;background:linear-gradient(135deg,#2dd4bf,#6366f1)}
+.legend i.fr{background:var(--ring-track);box-shadow:inset 0 0 0 1px var(--line)}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 8px;border-radius:999px;background:var(--chip);border:1px solid var(--line);color:var(--ok)}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.segs{display:flex;gap:3px;margin-top:10px}
+.segs i{flex:1;height:5px;border-radius:3px;background:linear-gradient(90deg,#2dd4bf,#6366f1)}
+.segs i:last-child{background:var(--ring-track)}
+.spark{width:100%;height:36px;margin-top:8px;overflow:visible}
+.list{grid-column:2 / span 2}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:6px 0}
+.row+.row{border-top:1px solid var(--line)}
+.row b{font-weight:550;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row em{font-style:normal;font-variant-numeric:tabular-nums;color:var(--text-2);font-weight:600}
+.bar{grid-column:1/-1;height:4px;border-radius:2px;background:var(--ring-track);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:2px;background:linear-gradient(90deg,var(--c1),var(--c2))}
+.float{position:absolute;right:28px;top:-26px;display:flex;align-items:center;gap:10px;padding:10px 14px 10px 10px;border-radius:16px;font-size:13px;text-align:left;animation:bob 6s ease-in-out infinite}
+.float .fi{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:var(--btn);color:#fff;flex:none}
+.float .fi svg{width:16px;height:16px}
+.float b{display:block;font-size:13px}.float span{color:var(--text-3);font-size:12px}
+@keyframes bob{50%{transform:translateY(-6px)}}
+
+/* Features bento */
+.bento{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;grid-auto-flow:dense}
+.f{padding:28px;display:flex;flex-direction:column;gap:12px;transition:transform .3s ease,background .3s}
+.f:hover{transform:translateY(-3px);background:var(--glass-2)}
+.f.w2{grid-column:span 2}
+.f h3{font-size:22px;font-weight:700}
+.f p{color:var(--text-2);font-size:16px}
+.f code{font-size:.86em;background:var(--code);padding:1px 5px;border-radius:5px;color:var(--text)}
+.ic{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--c1),var(--c2));box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 8px 20px -8px var(--c2);margin-bottom:4px}
+.ic svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.chips span{font-size:13px;font-weight:500;padding:4px 10px;border-radius:999px;background:var(--chip);border:1px solid var(--line);color:var(--text-2)}
+.chips .lab{background:none;border-color:transparent;padding-left:0;font-weight:650;color:var(--text)}
+.tm{display:grid;grid-template-columns:3fr 2fr 1.4fr;grid-template-rows:42px 28px 22px;gap:4px;margin-top:auto;padding-top:8px}
+.tm i{border-radius:7px;background:linear-gradient(135deg,var(--c1),var(--c2));opacity:.85}
+.tm i:nth-child(1){grid-row:span 3;--c1:#6366f1;--c2:#4338ca}
+.tm i:nth-child(2){grid-column:span 2;--c1:#2dd4bf;--c2:#0d9488}
+.tm i:nth-child(3){grid-row:span 2;--c1:#a78bfa;--c2:#7c3aed}
+.tm i:nth-child(4){--c1:#38bdf8;--c2:#0284c7}
+.tm i:nth-child(5){--c1:#f0abfc;--c2:#c026d3}
+.meters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:auto;padding-top:8px}
+.meters div{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 12px;font-size:12px;color:var(--text-3);font-weight:600}
+.meters b{display:block;font-size:20px;color:var(--text);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.meters svg{width:100%;height:28px;margin-top:4px}
+
+/* Safety */
+.split{display:grid;grid-template-columns:1fr 1.05fr;gap:56px;align-items:center}
+.checks{list-style:none;padding:0;margin:28px 0 0;display:grid;gap:16px}
+.checks li{display:grid;grid-template-columns:28px 1fr;gap:12px;color:var(--text-2)}
+.checks li b{color:var(--text);font-weight:650;display:block}
+.checks svg{width:28px;height:28px}
+.review{padding:8px;border-radius:26px}
+.review .in-card{background:var(--card);border:1px solid var(--line);border-radius:19px;padding:18px 18px 16px}
+.rhead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:10px}
+.rhead b{font-size:17px}.rhead span{font-size:13px;color:var(--text-3);font-variant-numeric:tabular-nums}
+.ri{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line);font-size:14px}
+.ri .cb{width:18px;height:18px;border-radius:6px;background:var(--btn);display:grid;place-items:center;color:#fff}
+.ri .cb svg{width:12px;height:12px}
+.ri .cb.off{background:transparent;border:1.5px solid var(--text-3)}
+.ri .cb.lock{background:transparent;color:var(--text-3)}
+.ri .cb.lock svg{width:16px;height:16px}
+.ri b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ri code{display:block;font-size:12px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ri em{font-style:normal;font-weight:600;font-variant-numeric:tabular-nums;color:var(--text-2);font-size:13px}
+.ri .tag{font-size:11px;font-weight:650;padding:3px 8px;border-radius:999px;background:var(--chip);border:1px solid var(--line);color:var(--warn);white-space:nowrap}
+.ri.dim b,.ri.dim code{opacity:.7}
+.ract{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+.ract span{padding:8px 16px;border-radius:999px;font-size:13px;font-weight:600;background:var(--chip);border:1px solid var(--line)}
+.ract span.p{background:var(--btn);color:#fff;border-color:transparent}
+
+/* Install */
+.inst{display:grid;grid-template-columns:1.2fr 1fr;gap:18px}
+.inst .glass{padding:32px}
+.inst h3{font-size:24px;font-weight:700;margin-bottom:8px}
+.inst p{color:var(--text-2);font-size:16px}
+.badge{display:inline-block;font-size:12px;font-weight:650;letter-spacing:.03em;padding:3px 10px;border-radius:999px;background:var(--sel);color:var(--text);margin-bottom:14px}
+.term{margin-top:20px;border-radius:16px;background:var(--code);border:1px solid var(--line);overflow:hidden}
+.term-bar{display:flex;align-items:center;gap:6px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.term-bar i{width:10px;height:10px;border-radius:50%;background:var(--ring-track)}
+.term-bar span{margin-left:8px;font-size:12px;color:var(--text-3);font-family:var(--mono)}
+.cmd{display:flex;align-items:flex-start;gap:12px;padding:16px}
+.cmd code{flex:1;min-width:0;font-size:14px;line-height:1.6;color:var(--text);overflow-wrap:anywhere;white-space:pre-wrap}
+.cmd code::before{content:"$ ";color:var(--text-3);user-select:none;-webkit-user-select:none}
+.copy{flex:none;display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--glass-2);color:var(--text);font:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:background .2s}
+.copy:hover{background:var(--chip)}
+.copy svg{width:15px;height:15px}
+.copy .ok{display:none}
+.copy.done .ok{display:block}.copy.done .cp{display:none}
+.copy.done{color:var(--ok)}
+.small{font-size:14px!important;color:var(--text-3)!important;margin-top:14px}
+.small a{color:var(--text-2);text-underline-offset:3px}
+.dl{display:flex;flex-wrap:wrap;gap:10px;margin:20px 0 24px}
+.note{border-top:1px solid var(--line);padding-top:20px}
+.note h4{margin:0 0 6px;font-size:15px}
+.note ol{margin:10px 0 0;padding-left:20px;color:var(--text-2);font-size:15px;display:grid;gap:8px}
+.note .cmd{padding:10px 12px}.note .cmd code{font-size:13px}
+.note .term{margin-top:8px}
+.reqs{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:22px;list-style:none;padding:0}
+.reqs li{display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:999px;font-size:14px;font-weight:550;color:var(--text-2)}
+.reqs svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* FAQ */
+.faq{max-width:820px;margin:0 auto;display:grid;gap:12px}
+.faq details{border-radius:20px;padding:0}
+.faq summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:16px;padding:22px 24px;font-size:18px;font-weight:650;border-radius:20px}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary i{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--chip);border:1px solid var(--line);transition:transform .3s}
+.faq summary i svg{width:14px;height:14px}
+.faq details[open] summary i{transform:rotate(45deg)}
+.faq .a{padding:0 24px 24px;color:var(--text-2);font-size:16px;display:grid;gap:12px}
+.faq .a code{font-size:14px;background:var(--code);padding:2px 6px;border-radius:6px;word-break:break-all}
+
+/* Footer */
+footer{padding:40px 0 56px}
+footer .glass{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:20px;padding:24px 28px}
+footer p{color:var(--text-3);font-size:14px;margin-top:4px}
+footer nav{display:flex;flex-wrap:wrap;gap:4px 18px}
+footer nav a{font-size:15px;color:var(--text-2);text-decoration:none;font-weight:500}
+footer nav a:hover{color:var(--text);text-decoration:underline;text-underline-offset:3px}
+.fine{text-align:center;font-size:13px;color:var(--text-3);margin-top:20px}
+
+/* Reveal */
+.js .rv{opacity:0;transform:translateY(22px);transition:opacity .8s ease,transform .8s cubic-bezier(.2,.8,.2,1)}
+.js .rv.in{opacity:1;transform:none}
+
+/* Responsive */
+@media (max-width:980px){
+  .win{grid-template-columns:180px 1fr}
+  .mgrid{grid-template-columns:1fr 1fr}
+  .ringc{grid-row:auto;grid-column:1 / -1;flex-direction:row;justify-content:flex-start;gap:24px;text-align:left}
+  .list{grid-column:1 / -1}
+  .bento{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .split,.inst{grid-template-columns:1fr}
+  .split{gap:40px}
+}
+@media (max-width:760px){
+  body{font-size:16px}
+  section{padding:72px 0}
+  .wrap{padding:0 16px}
+  .nav{padding:0 12px}
+  .nav ul{display:none}
+  .nav .btn{margin-left:auto}
+  .hero{padding:56px 0 24px}
+  .win{grid-template-columns:1fr;min-height:0}
+  .side{display:none}
+  .main{padding:16px 12px 12px}
+  .main .lights{padding:0 0 14px}
+  .float{display:none}
+  .stage{margin-top:44px}
+  .bento{grid-template-columns:1fr}
+  .f.w2{grid-column:auto}
+  .f{padding:24px}
+  .inst .glass{padding:24px 20px}
+  .faq summary{padding:18px 20px;font-size:17px}
+  .faq .a{padding:0 20px 20px}
+  .btn{width:100%}
+  .ctas{flex-direction:column;align-items:stretch;max-width:360px;margin-left:auto;margin-right:auto}
+  .nav .btn{width:auto}
+  .dl .btn{flex:1 1 140px;width:auto}
+  .meters{grid-template-columns:1fr 1fr 1fr;gap:6px}
+  .meters div{padding:8px}
+  .meters b{font-size:16px}
+}
+@media (max-width:420px){
+  .ringc{flex-direction:column;text-align:center;align-items:center}
+  .mgrid{gap:8px}
+  .mc{padding:12px}
+  .big{font-size:24px}
+  .top h3{font-size:18px}
+  .ri{grid-template-columns:20px minmax(0,1fr)}
+  .ri em,.ri .tag{grid-column:2}
+}
+@media (min-width:761px){.main .lights{display:none}}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  .js .rv{opacity:1;transform:none}
+  .js .arc{stroke-dashoffset:32}
+}
+
+/* Real screenshots */
+.shots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px;margin-top:44px}
+.shots figure{margin:0;padding:10px;display:flex;flex-direction:column;gap:10px}
+.shots figure.wide{grid-column:1 / -1}
+.shots img{width:100%;height:auto;display:block;border-radius:14px}
+.shots figcaption{font-size:14px;color:var(--text-2);padding:0 6px 4px}
+.shots figcaption b{color:var(--text);font-weight:650;margin-right:6px}
+@media (max-width:760px){.shots{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#14b8a6"/><stop offset=".5" stop-color="#2f80ed"/><stop offset="1" stop-color="#5b4be6"/></linearGradient>
+    <linearGradient id="lh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".32"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2dd4bf"/><stop offset=".5" stop-color="#3b82f6"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient>
+    <linearGradient id="sg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2dd4bf"/><stop offset="1" stop-color="#818cf8"/></linearGradient>
+    <linearGradient id="sf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6366f1" stop-opacity=".28"/><stop offset="1" stop-color="#6366f1" stop-opacity="0"/></linearGradient>
+    <symbol id="logo" viewBox="0 0 64 64">
+      <rect width="64" height="64" rx="14" fill="url(#lg)"/><rect width="64" height="64" rx="14" fill="url(#lh)"/>
+      <path fill="#fff" d="M29 15c1.7 12.6 5 15.9 17.6 17.6C34 34.3 30.7 37.6 29 50.2 27.3 37.6 24 34.3 11.4 32.6 24 30.9 27.3 27.6 29 15z"/>
+      <path fill="#fff" d="M47 10.5c.7 4.6 1.8 5.7 6.4 6.4-4.6.7-5.7 1.8-6.4 6.4-.7-4.6-1.8-5.7-6.4-6.4 4.6-.7 5.7-1.8 6.4-6.4z"/>
+      <circle cx="47.5" cy="46.5" r="4.2" fill="#fff" fill-opacity=".28" stroke="#fff" stroke-width="2"/>
+    </symbol>
+    <symbol id="chk" viewBox="0 0 24 24"><path d="M5 12.5l4.2 4.2L19 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="cpy" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="3"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></g></symbol>
+    <symbol id="gh" viewBox="0 0 24 24"><path fill="currentColor" d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.42-2.7 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z"/></symbol>
+    <symbol id="dlI" viewBox="0 0 24 24"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19.5h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="shield" viewBox="0 0 28 28"><circle cx="14" cy="14" r="13" fill="url(#rg)"/><path d="M8.5 14.3l3.6 3.6 7.4-7.6" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  </defs>
+</svg>
+
+<div class="bg" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+
+<header class="nav">
+  <div class="glass">
+    <a class="brand" href="#top" aria-label="Scrub home"><svg aria-hidden="true"><use href="#logo"/></svg>Scrub</a>
+    <nav aria-label="Primary">
+      <ul>
+        <li><a href="#features">Features</a></li>
+        <li><a href="#safety">Safety</a></li>
+        <li><a href="#install">Install</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </nav>
+    <a class="btn btn-g" href="https://github.com/nearbycoder/scrub"><svg aria-hidden="true"><use href="#gh"/></svg>GitHub</a>
+  </div>
+</header>
+
+<main id="main">
+  <section class="hero" id="top">
+    <div class="wrap">
+      <span class="eyebrow glass"><b>FREE</b>Open-source Mac cleaner for macOS 26 Tahoe</span>
+      <h1>Your Mac, <span class="grad">crystal clear.</span></h1>
+      <p class="lede">Scrub is a native SwiftUI cleaner wrapped in Liquid Glass. Reclaim gigabytes of caches, app leftovers, and build junk — and see exactly what goes before anything does.</p>
+      <div class="ctas">
+        <a class="btn btn-p" href="https://github.com/nearbycoder/scrub/releases/latest/download/Scrub.dmg"><svg aria-hidden="true"><use href="#dlI"/></svg>Download for Mac <small>.dmg</small></a>
+        <a class="btn btn-g" href="#install">One-line install</a>
+      </div>
+      <ul class="meta">
+        <li><svg aria-hidden="true"><use href="#chk"/></svg>Free forever</li>
+        <li><svg aria-hidden="true"><use href="#chk"/></svg>MIT licensed</li>
+        <li><svg aria-hidden="true"><use href="#chk"/></svg>Apple silicon &amp; Intel</li>
+        <li><svg aria-hidden="true"><use href="#chk"/></svg>No subscriptions</li>
+      </ul>
+
+      <div class="stage rv" role="img" aria-label="Illustration of the Scrub app window showing the Smart Scan overview: disk usage ring at 68 percent, a health score of 92, and 24.7 gigabytes of junk found.">
+        <div class="float glass" aria-hidden="true">
+          <span class="fi"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" fill="currentColor"/></svg></span>
+          <div><b>24.7 GB ready to clean</b><span>From the menu bar</span></div>
+        </div>
+        <div class="win glass" aria-hidden="true">
+          <aside class="side">
+            <div class="lights"><i></i><i></i><i></i></div>
+            <ul>
+              <li class="on"><span style="--c1:#2dd4bf;--c2:#3b82f6"></span>Smart Scan</li>
+              <li><span style="--c1:#38bdf8;--c2:#6366f1"></span>Clean</li>
+              <li><span style="--c1:#fb7185;--c2:#e11d48"></span>Uninstaller</li>
+              <li><span style="--c1:#a78bfa;--c2:#7c3aed"></span>Space Lens</li>
+              <li><span style="--c1:#fbbf24;--c2:#ea580c"></span>Optimize</li>
+              <li><span style="--c1:#4ade80;--c2:#059669"></span>Status</li>
+            </ul>
+            <div class="sec">Developer</div>
+            <ul>
+              <li><span style="--c1:#f0abfc;--c2:#c026d3"></span>Purge</li>
+              <li><span style="--c1:#94a3b8;--c2:#475569"></span>Installers</li>
+              <li><span style="--c1:#67e8f9;--c2:#0891b2"></span>History</li>
+            </ul>
+          </aside>
+          <div class="main">
+            <div class="lights"><i></i><i></i><i></i></div>
+            <div class="top">
+              <div><h3>Smart Scan</h3><p>Macintosh HD · Last scan 2 min ago</p></div>
+              <span class="scan"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" fill="currentColor"/></svg>Scan</span>
+            </div>
+            <div class="mgrid">
+              <div class="mc ringc">
+                <div class="ring">
+                  <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="50" fill="none" stroke="var(--ring-track)" stroke-width="12"/><circle class="arc" cx="60" cy="60" r="50" fill="none" stroke="url(#rg)" stroke-width="12" stroke-linecap="round" pathLength="100"/></svg>
+                  <div class="val"><b>68%</b><span>312 of 460 GB</span></div>
+                </div>
+                <div>
+                  <div class="legend"><span><i></i>Used</span><span><i class="fr"></i>148 GB free</span></div>
+                </div>
+              </div>
+              <div class="mc">
+                <h4>System health</h4>
+                <div class="big">92<small>/100</small></div>
+                <div class="segs"><i></i><i></i><i></i><i></i><i></i></div>
+                <div style="margin-top:10px"><span class="pill">Excellent</span></div>
+              </div>
+              <div class="mc">
+                <h4>CPU</h4>
+                <div class="big">18<small>%</small></div>
+                <svg class="spark" viewBox="0 0 100 36" preserveAspectRatio="none"><path d="M0 28 L10 24 L20 26 L30 18 L40 22 L50 12 L60 16 L70 9 L80 14 L90 7 L100 11 L100 36 L0 36Z" fill="url(#sf)"/><path d="M0 28 L10 24 L20 26 L30 18 L40 22 L50 12 L60 16 L70 9 L80 14 L90 7 L100 11" fill="none" stroke="url(#sg)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>
+              </div>
+              <div class="mc list">
+                <h4>Junk found · 24.7 GB</h4>
+                <div class="row"><b>Developer junk</b><em>14.2 GB</em><div class="bar"><i style="width:100%;--c1:#f0abfc;--c2:#a855f7"></i></div></div>
+                <div class="row"><b>Browser caches</b><em>4.8 GB</em><div class="bar"><i style="width:34%;--c1:#38bdf8;--c2:#6366f1"></i></div></div>
+                <div class="row"><b>System &amp; user caches</b><em>3.1 GB</em><div class="bar"><i style="width:22%;--c1:#2dd4bf;--c2:#0ea5e9"></i></div></div>
+                <div class="row"><b>Logs &amp; Trash</b><em>2.6 GB</em><div class="bar"><i style="width:18%;--c1:#fbbf24;--c2:#f97316"></i></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="features">
+    <div class="wrap">
+      <div class="head center rv">
+        <span class="kicker">Everything in one app</span>
+        <h2 class="h2">Nine tools. One calm window.</h2>
+        <p class="lede">Everything the paid cleaners do, rebuilt as a fast, native Mac app — and the source is right there for you to read.</p>
+      </div>
+      <div class="bento">
+        <article class="f glass rv">
+          <div class="ic" style="--c1:#2dd4bf;--c2:#2563eb"><svg viewBox="0 0 24 24"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M12 8l1.2 2.8L16 12l-2.8 1.2L12 16l-1.2-2.8L8 12l2.8-1.2z"/></svg></div>
+          <h3>Smart Scan</h3>
+          <p>A one-click overview of your Mac: disk usage ring, a system health score, and every reclaimable byte in a single pass.</p>
+        </article>
+        <article class="f glass w2 rv">
+          <div class="ic" style="--c1:#38bdf8;--c2:#4f46e5"><svg viewBox="0 0 24 24"><path d="M9.5 3l1.6 4.4 4.4 1.6-4.4 1.6-1.6 4.4-1.6-4.4L3.5 9l4.4-1.6z"/><path d="M18 13l.9 2.1 2.1.9-2.1.9L18 19l-.9-2.1L15 16l2.1-.9zM17 3v3M15.5 4.5h3"/></svg></div>
+          <h3>Clean</h3>
+          <p>System and user caches, logs, chat app caches, Trash and old installers — plus the junk developers pile up. Caches of running apps are skipped automatically.</p>
+          <div class="chips"><span class="lab">Browsers</span><span>Safari</span><span>Chrome</span><span>Firefox</span><span>Edge</span><span>Brave</span><span>Arc</span></div>
+          <div class="chips"><span class="lab">Developer</span><span>Xcode DerivedData</span><span>Simulators</span><span>npm</span><span>yarn</span><span>pnpm</span><span>bun</span><span>pip</span><span>Homebrew</span><span>CocoaPods</span><span>Gradle</span><span>Cargo</span><span>Go</span></div>
+        </article>
+        <article class="f glass rv">
+          <div class="ic" style="--c1:#fb7185;--c2:#be123c"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="4.5"/><path d="M9.5 9.5l5 5M14.5 9.5l-5 5"/></svg></div>
+          <h3>Uninstaller</h3>
+          <p>Removes apps and everything they leave behind — Application Support, Caches, Preferences, Containers, Launch Agents, Saved State, WebKit data, Cookies and more. All of it goes to the Trash.</p>
+        </article>
+        <article class="f glass rv">
+          <div class="ic" style="--c1:#a78bfa;--c2:#6d28d9"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M12 3.5v17M12 11h8.5M3.5 14H12M16.5 11v9.5"/></svg></div>
+          <h3>Space Lens</h3>
+          <p>An interactive treemap of your disk. Drill into folders, find the largest files, reveal in Finder or move to Trash.</p>
+          <div class="tm" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+        </article>
+        <article class="f glass rv">
+          <div class="ic" style="--c1:#fbbf24;--c2:#ea580c"><svg viewBox="0 0 24 24"><path d="M13 2.5L4.5 13.5H11l-1 8 8.5-11H12z"/></svg></div>
+          <h3>Optimize</h3>
+          <p>Rebuild QuickLook, font and Launch Services caches, flush DNS, purge memory, thin Time Machine snapshots, remove broken launch agents and reindex Spotlight — with one admin prompt for the whole batch, or Touch ID for sudo.</p>
+        </article>
+        <article class="f glass w2 rv">
+          <div class="ic" style="--c1:#4ade80;--c2:#047857"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></div>
+          <h3>Status</h3>
+          <p>Live CPU, memory pressure, disk, network, battery and thermal state, plus the top processes — each with its own sparkline.</p>
+          <div class="meters" aria-hidden="true">
+            <div>CPU<b>18%</b><svg viewBox="0 0 100 28" preserveAspectRatio="none"><path d="M0 20 L12 16 L24 18 L36 10 L48 14 L60 6 L72 12 L84 8 L100 10" fill="none" stroke="url(#sg)" stroke-width="2" vector-effect="non-scaling-stroke"/></svg></div>
+            <div>Memory<b>Normal</b><svg viewBox="0 0 100 28" preserveAspectRatio="none"><path d="M0 14 L12 15 L24 13 L36 14 L48 12 L60 13 L72 11 L84 12 L100 11" fill="none" stroke="url(#sg)" stroke-width="2" vector-effect="non-scaling-stroke"/></svg></div>
+            <div>Network<b>2.4 MB/s</b><svg viewBox="0 0 100 28" preserveAspectRatio="none"><path d="M0 22 L12 20 L24 8 L36 18 L48 21 L60 4 L72 16 L84 19 L100 9" fill="none" stroke="url(#sg)" stroke-width="2" vector-effect="non-scaling-stroke"/></svg></div>
+          </div>
+        </article>
+        <article class="f glass rv">
+          <div class="ic" style="--c1:#f0abfc;--c2:#a21caf"><svg viewBox="0 0 24 24"><path d="M3 7.5a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 13.5h6"/></svg></div>
+          <h3>Purge</h3>
+          <p>Sweeps your project folders for stale build artifacts: <code>node_modules</code>, <code>target</code>, <code>.build</code>, <code>dist</code>, <code>.next</code>, <code>DerivedData</code>, <code>__pycache__</code>, <code>venv</code>, <code>Pods</code> and more.</p>
+        </article>
+        <article class="f glass rv">
+          <div class="ic" style="--c1:#94a3b8;--c2:#334155"><svg viewBox="0 0 24 24"><path d="M12 3.5v11M7.5 10l4.5 4.5 4.5-4.5"/><path d="M4 16v2.5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V16"/></svg></div>
+          <h3>Installers</h3>
+          <p>Finds forgotten <code>.dmg</code>, <code>.pkg</code>, <code>.iso</code>, <code>.xip</code> and <code>.zip</code> installers hiding in Downloads and beyond.</p>
+        </article>
+        <article class="f glass rv">
+          <div class="ic" style="--c1:#67e8f9;--c2:#0e7490"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3.5"/><path d="M3 8.5h18M15 6.3h3"/></svg></div>
+          <h3>Menu bar extra</h3>
+          <p>Glanceable stats and quick actions from the menu bar, without opening the full window.</p>
+        </article>
+        <article class="f glass rv">
+          <div class="ic" style="--c1:#818cf8;--c2:#3730a3"><svg viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4v4.5H8M12 7.5V12l3 2"/></svg></div>
+          <h3>History</h3>
+          <p>A log of every cleanup — what was removed, from where, and how much space it freed.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+
+  <section id="screenshots">
+    <div class="wrap">
+      <div class="head center rv">
+        <span class="kicker">The real thing</span>
+        <h2 class="h2">Built for macOS Tahoe and later.</h2>
+        <p class="lede">Native SwiftUI with Liquid Glass throughout, captured straight from the app.</p>
+      </div>
+      <div class="shots">
+        <figure class="glass rv wide"><img src="screenshots/overview.png" alt="Scrub Overview screen" loading="lazy" width="1292" height="892"><figcaption><b>Overview</b>Disk usage, system health and a one-click Smart Scan.</figcaption></figure>
+        <figure class="glass rv"><img src="screenshots/clean.png" alt="Scrub Smart Clean screen" loading="lazy" width="1292" height="892"><figcaption><b>Smart Clean</b>Every category and every file, reviewed before anything is removed.</figcaption></figure>
+        <figure class="glass rv"><img src="screenshots/analyze.png" alt="Scrub Space Lens screen" loading="lazy" width="1292" height="892"><figcaption><b>Space Lens</b>An interactive treemap of what's actually filling your disk.</figcaption></figure>
+        <figure class="glass rv"><img src="screenshots/uninstall.png" alt="Scrub Uninstaller screen" loading="lazy" width="1292" height="892"><figcaption><b>Uninstaller</b>Apps sized and sorted, with leftovers found for each one.</figcaption></figure>
+        <figure class="glass rv"><img src="screenshots/status.png" alt="Scrub Live Status screen" loading="lazy" width="1292" height="892"><figcaption><b>Live Status</b>CPU, memory, disk, network, GPU and battery in real time.</figcaption></figure>
+        <figure class="glass rv wide"><img src="screenshots/optimize.png" alt="Scrub Optimize screen" loading="lazy" width="1292" height="892"><figcaption><b>Optimize</b>Maintenance tasks, one password prompt, plus Touch ID for sudo.</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="safety">
+    <div class="wrap split">
+      <div class="rv">
+        <span class="kicker">Careful by default</span>
+        <h2 class="h2">Nothing leaves without your say.</h2>
+        <p class="lede" style="margin-top:16px">Cleaning a Mac should never feel like a gamble. Scrub shows its work, and it’s cautious where it counts.</p>
+        <ul class="checks">
+          <li><svg aria-hidden="true"><use href="#shield"/></svg><div><b>Preview everything</b>Every item, path and size is listed before removal. Uncheck anything you want to keep.</div></li>
+          <li><svg aria-hidden="true"><use href="#shield"/></svg><div><b>Running apps are left alone</b>Caches belonging to apps that are open right now are skipped.</div></li>
+          <li><svg aria-hidden="true"><use href="#shield"/></svg><div><b>Protected paths</b>A whitelist of locations Scrub will never touch.</div></li>
+          <li><svg aria-hidden="true"><use href="#shield"/></svg><div><b>Trash, not oblivion</b>Uninstalled apps and Space Lens deletions go to the Trash, so you can change your mind.</div></li>
+          <li><svg aria-hidden="true"><use href="#shield"/></svg><div><b>Open source, MIT licensed</b>Read exactly what it does — every line is on GitHub.</div></li>
+        </ul>
+      </div>
+      <div class="review glass rv" role="img" aria-label="Illustration of Scrub's review screen: four items selected totalling 9.3 gigabytes, a Chrome cache skipped because the app is running, and the Documents folder marked protected.">
+        <div class="in-card" aria-hidden="true">
+          <div class="rhead"><b>Review before cleaning</b><span>4 selected · 9.3 GB</span></div>
+          <div class="ri"><span class="cb"><svg><use href="#chk"/></svg></span><div><b>Xcode DerivedData</b><code>~/Library/Developer/Xcode/DerivedData</code></div><em>6.2 GB</em></div>
+          <div class="ri"><span class="cb"><svg><use href="#chk"/></svg></span><div><b>npm cache</b><code>~/.npm/_cacache</code></div><em>1.9 GB</em></div>
+          <div class="ri"><span class="cb"><svg><use href="#chk"/></svg></span><div><b>Safari cache</b><code>~/Library/Caches/com.apple.Safari</code></div><em>812 MB</em></div>
+          <div class="ri"><span class="cb"><svg><use href="#chk"/></svg></span><div><b>User logs</b><code>~/Library/Logs</code></div><em>431 MB</em></div>
+          <div class="ri dim"><span class="cb off"></span><div><b>Chrome cache</b><code>~/Library/Caches/Google/Chrome</code></div><span class="tag">Skipped · running</span></div>
+          <div class="ri dim"><span class="cb lock"><svg viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></g></svg></span><div><b>Documents</b><code>~/Documents</code></div><span class="tag">Protected</span></div>
+          <div class="ract"><span>Cancel</span><span class="p">Clean 9.3 GB</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="install">
+    <div class="wrap">
+      <div class="head center rv">
+        <span class="kicker">Get Scrub</span>
+        <h2 class="h2">Install in seconds.</h2>
+        <p class="lede">One command in Terminal, or a classic drag-to-Applications download. Either way, it’s free.</p>
+      </div>
+      <div class="inst">
+        <div class="glass rv">
+          <span class="badge">Recommended</span>
+          <h3>One-line install</h3>
+          <p>Downloads the latest release, installs Scrub, and clears the quarantine flag so it opens without a Gatekeeper warning.</p>
+          <div class="term">
+            <div class="term-bar" aria-hidden="true"><i></i><i></i><i></i><span>Terminal</span></div>
+            <div class="cmd">
+              <code id="cmd-install">curl -fsSL https://raw.githubusercontent.com/nearbycoder/scrub/main/install.sh | bash</code>
+              <button class="copy" type="button" data-copy="cmd-install" aria-label="Copy install command"><svg class="cp" aria-hidden="true"><use href="#cpy"/></svg><svg class="ok" aria-hidden="true"><use href="#chk"/></svg><span>Copy</span></button>
+            </div>
+          </div>
+          <p class="small">Prefer to look before you pipe? <a href="https://github.com/nearbycoder/scrub/blob/main/install.sh">Read install.sh on GitHub</a>.</p>
+        </div>
+        <div class="glass rv">
+          <h3>Download</h3>
+          <p>Grab the latest build from GitHub Releases.</p>
+          <div class="dl">
+            <a class="btn btn-p" href="https://github.com/nearbycoder/scrub/releases/latest/download/Scrub.dmg"><svg aria-hidden="true"><use href="#dlI"/></svg>Scrub.dmg</a>
+            <a class="btn btn-g" href="https://github.com/nearbycoder/scrub/releases/latest/download/Scrub.zip"><svg aria-hidden="true"><use href="#dlI"/></svg>Scrub.zip</a>
+          </div>
+          <div class="note">
+            <h4>Opening it the first time</h4>
+            <p class="small" style="margin-top:0">Scrub is ad-hoc signed, not notarized, so macOS may block the first launch. After moving it to Applications, either:</p>
+            <ol>
+              <li>Run this in Terminal:
+                <div class="term">
+                  <div class="cmd">
+                    <code id="cmd-xattr">xattr -dr com.apple.quarantine /Applications/Scrub.app</code>
+                    <button class="copy" type="button" data-copy="cmd-xattr" aria-label="Copy quarantine command"><svg class="cp" aria-hidden="true"><use href="#cpy"/></svg><svg class="ok" aria-hidden="true"><use href="#chk"/></svg><span>Copy</span></button>
+                  </div>
+                </div>
+              </li>
+              <li>Or open <b>System Settings → Privacy &amp; Security</b> and click <b>Open Anyway</b>.</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+      <ul class="reqs rv">
+        <li class="glass"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2.5"/><path d="M8 20h8M12 16v4"/></svg>macOS 26 Tahoe or later</li>
+        <li class="glass"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.5"/><path d="M9 2.5V6M15 2.5V6M9 18v3.5M15 18v3.5M2.5 9H6M2.5 15H6M18 9h3.5M18 15h3.5"/></svg>Apple silicon or Intel</li>
+        <li class="glass"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7.5 3v5.5c0 4.5-3.2 8.2-7.5 9.5-4.3-1.3-7.5-5-7.5-9.5V6z"/><path d="M8.8 12.2l2.2 2.2 4.2-4.4"/></svg>Free &amp; MIT licensed</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="faq">
+    <div class="wrap">
+      <div class="head center rv">
+        <span class="kicker">FAQ</span>
+        <h2 class="h2">Questions, answered.</h2>
+      </div>
+      <div class="faq">
+        <details class="glass rv">
+          <summary>Is Scrub safe to use?<i aria-hidden="true"><svg viewBox="0 0 14 14"><path d="M7 1.5v11M1.5 7h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></i></summary>
+          <div class="a">
+            <p>Scrub is built to be conservative. It previews every item before removal, skips caches that belong to apps currently running, and honors a protected-paths whitelist it will never touch. Uninstalled apps and files you remove in Space Lens go to the Trash, and every cleanup is recorded in History.</p>
+            <p>Because Scrub is open source, you don’t have to take our word for it — the code that decides what to remove is on <a href="https://github.com/nearbycoder/scrub">GitHub</a>.</p>
+          </div>
+        </details>
+        <details class="glass rv">
+          <summary>Why isn’t it notarized?<i aria-hidden="true"><svg viewBox="0 0 14 14"><path d="M7 1.5v11M1.5 7h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></i></summary>
+          <div class="a">
+            <p>Notarization requires a paid Apple Developer Program membership. Scrub releases are ad-hoc signed instead, so Gatekeeper flags the app the first time you open a downloaded copy.</p>
+            <p>The one-line installer clears that quarantine flag for you. If you used the DMG or ZIP, run <code>xattr -dr com.apple.quarantine /Applications/Scrub.app</code>, or go to System Settings → Privacy &amp; Security and click Open Anyway. You can also build Scrub yourself from source.</p>
+          </div>
+        </details>
+        <details class="glass rv">
+          <summary>What exactly does it delete?<i aria-hidden="true"><svg viewBox="0 0 14 14"><path d="M7 1.5v11M1.5 7h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></i></summary>
+          <div class="a">
+            <p>Only what you approve from the preview. The categories are regenerable or disposable data: system and user caches, logs, browser caches, developer caches (Xcode DerivedData, simulators, package manager caches), chat app caches, the Trash, old installers, leftovers from apps you uninstall, and project build artifacts like <code>node_modules</code> found by Purge.</p>
+            <p>Your documents, photos and other personal files aren’t part of any cleaning category. Space Lens only moves files you explicitly pick to the Trash.</p>
+          </div>
+        </details>
+        <details class="glass rv">
+          <summary>Why does Optimize ask for my password?<i aria-hidden="true"><svg viewBox="0 0 14 14"><path d="M7 1.5v11M1.5 7h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></i></summary>
+          <div class="a">
+            <p>Some maintenance tasks — like flushing DNS, rebuilding Launch Services or thinning Time Machine snapshots — need administrator rights. Scrub batches them so you only see one prompt per run, and you can turn on Touch ID for sudo to approve with your fingerprint.</p>
+          </div>
+        </details>
+        <details class="glass rv">
+          <summary>Is it really free?<i aria-hidden="true"><svg viewBox="0 0 14 14"><path d="M7 1.5v11M1.5 7h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></i></summary>
+          <div class="a">
+            <p>Yes. Scrub is free and released under the MIT License — no subscription, no trial, no upsell. If it saves you some space, a star on GitHub is always appreciated.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="glass">
+      <div>
+        <a class="brand" href="#top"><svg aria-hidden="true"><use href="#logo"/></svg>Scrub</a>
+        <p>A free, open-source Mac cleaner. MIT License © <span id="yr">2026</span> Scrub contributors.</p>
+      </div>
+      <nav aria-label="Footer">
+        <a href="https://github.com/nearbycoder/scrub">GitHub</a>
+        <a href="https://github.com/nearbycoder/scrub/releases">Releases</a>
+        <a href="https://github.com/nearbycoder/scrub/issues">Report an issue</a>
+        <a href="https://github.com/nearbycoder/scrub/blob/main/LICENSE">MIT License</a>
+      </nav>
+    </div>
+    <p class="fine">Scrub is an independent project and is not affiliated with Apple Inc. macOS is a trademark of Apple Inc.</p>
+  </div>
+</footer>
+
+<div class="sr" aria-live="polite" id="live"></div>
+
+<script>
+(function(){
+  var d=document,root=d.documentElement;
+  root.classList.add('js');
+  var y=d.getElementById('yr');if(y)y.textContent=new Date().getFullYear();
+
+  // Reveal on scroll
+  var els=d.querySelectorAll('.rv');
+  var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(!('IntersectionObserver' in window)||reduce){els.forEach(function(e){e.classList.add('in')})}
+  else{
+    var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}})},{rootMargin:'0px 0px -8% 0px',threshold:.08});
+    els.forEach(function(e){io.observe(e)});
+  }
+
+  // Copy to clipboard
+  var live=d.getElementById('live');
+  function fallback(t){var a=d.createElement('textarea');a.value=t;a.setAttribute('readonly','');a.style.position='fixed';a.style.opacity='0';d.body.appendChild(a);a.select();var ok=false;try{ok=d.execCommand('copy')}catch(e){}d.body.removeChild(a);return ok}
+  d.querySelectorAll('[data-copy]').forEach(function(b){
+    var label=b.querySelector('span'),timer;
+    b.addEventListener('click',function(){
+      var t=d.getElementById(b.getAttribute('data-copy')).textContent.trim();
+      function done(ok){
+        b.classList.toggle('done',ok);label.textContent=ok?'Copied':'Press ⌘C';
+        live.textContent=ok?'Command copied to clipboard':'Copy failed. Select the command and press Command C.';
+        clearTimeout(timer);timer=setTimeout(function(){b.classList.remove('done');label.textContent='Copy'},2200);
+      }
+      if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(t).then(function(){done(true)},function(){done(fallback(t))})}
+      else done(fallback(t));
+    });
+  });
+})();
+</script>
+</body>
+</html>
