@@ -121,3 +121,28 @@ final class OrphanFinderTests: XCTestCase {
         XCTAssertEqual(OrphanFinder.vendor("com.Example.App.helper"), "com.example")
     }
 }
+
+final class UpdaterTests: XCTestCase {
+    func testVersionComparison() {
+        XCTAssertTrue(Updater.isNewer("1.2.0", than: "1.1.0"))
+        XCTAssertTrue(Updater.isNewer("1.10", than: "1.9.9"))
+        XCTAssertTrue(Updater.isNewer("2", than: "1.99.99"))
+        XCTAssertFalse(Updater.isNewer("1.1.0", than: "1.1"))
+        XCTAssertFalse(Updater.isNewer("1.0.9", than: "1.1.0"))
+    }
+
+    func testRunningAppTeamMatchesItself() {
+        let team = Updater.teamIdentifier(of: Bundle.main.bundleURL)
+        XCTAssertEqual(team, Updater.teamIdentifier(of: Bundle.main.bundleURL))
+    }
+}
+
+final class ProjectKindTests: XCTestCase {
+    func testDetection() {
+        XCTAssertEqual(ProjectKind.detect("/x", entries: ["Cargo.toml", "src"]), .rust)
+        XCTAssertEqual(ProjectKind.detect("/x", entries: ["package.json", "node_modules"]), .node)
+        XCTAssertEqual(ProjectKind.detect("/x", entries: ["App.xcodeproj", "package.json"]), .xcode)
+        XCTAssertEqual(ProjectKind.detect("/x", entries: ["pyproject.toml"]), .python)
+        XCTAssertEqual(ProjectKind.detect("/x", entries: ["README.md"]), .other)
+    }
+}

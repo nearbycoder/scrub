@@ -7,6 +7,7 @@ struct CleanItem: Identifiable, Hashable {
     let size: Int64
     let modified: Date?
     var name: String { (path as NSString).lastPathComponent }
+    var modifiedSort: Date { modified ?? .distantPast }
 }
 
 @Observable
@@ -31,18 +32,6 @@ final class CleanRuleResult: Identifiable {
     }
 }
 
-/// One row of the Smart Clean outline: a group, a rule inside it, or an item inside a rule.
-struct CleanRow: Identifiable, Hashable {
-    enum Kind: Hashable {
-        case group(CleanGroup)
-        case rule(String)
-        case item(String, ruleID: String)
-    }
-    let id: String
-    let kind: Kind
-    var children: [CleanRow] = []
-}
-
 @Observable
 final class CleanModel {
     enum Phase: Equatable {
@@ -51,10 +40,8 @@ final class CleanModel {
 
     var phase: Phase = .idle
     var results: [CleanRuleResult] = [] { didSet { rebuildIndex() } }
-    private(set) var rows: [CleanRow] = []
     private(set) var resultByID: [String: CleanRuleResult] = [:]
-    private(set) var itemByPath: [String: CleanItem] = [:]
-    var expanded: Set<String> = []
+    var selectedRuleID: String?
     var progress: Double = 0
     var currentStep = ""
     var scannedFiles = 0
@@ -75,19 +62,9 @@ final class CleanModel {
 
     private func rebuildIndex() {
         resultByID = Dictionary(uniqueKeysWithValues: results.map { ($0.id, $0) })
-        itemByPath = [:]
-        var groups: [CleanRow] = []
-        for group in CleanGroup.allCases {
-            let rules = results(in: group)
-            guard !rules.isEmpty else { continue }
-            let ruleRows = rules.map { r -> CleanRow in
-                for item in r.items { itemByPath[item.path] = item }
-                return CleanRow(id: "rule:" + r.id, kind: .rule(r.id),
-                                children: r.items.map { CleanRow(id: $0.path, kind: .item($0.path, ruleID: r.id)) })
-            }
-            groups.append(CleanRow(id: "group:" + group.rawValue, kind: .group(group), children: ruleRows))
+        if selectedRuleID.map({ resultByID[$0] == nil }) ?? true {
+            selectedRuleID = results.first(where: \.isActive)?.id ?? results.first?.id
         }
-        rows = groups
     }
 
     func scan() {
@@ -179,7 +156,6 @@ final class CleanModel {
                 guard let self else { return }
                 self.skippedForAccess = skippedCount
                 self.results = collected
-                self.expanded = Set(collected.filter(\.isSelected).map { "group:" + $0.rule.group.rawValue })
                 self.phase = .ready
                 self.progress = 1
                 self.lastScanDate = .now

@@ -37,6 +37,9 @@ private struct GeneralSettings: View {
             }
             Section("App") {
                 Toggle("Show in menu bar", isOn: $settings.showMenuBarExtra)
+                Toggle("Check for updates automatically", isOn: Binding(
+                    get: { Updater.shared.automaticallyChecks },
+                    set: { Updater.shared.automaticallyChecks = $0 }))
                 Toggle("Open at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, on in
                         do { if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() } }

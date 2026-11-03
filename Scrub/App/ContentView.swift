@@ -14,6 +14,9 @@ struct ContentView: View {
         }
         .overlay(alignment: .bottom) { DemoCaption() }
         .onAppear { showOnboarding = !state.settings.hasCompletedOnboarding && !DemoDirector.isActive }
+        .sheet(isPresented: Binding(get: { Updater.shared.showSheet }, set: { Updater.shared.showSheet = $0 })) {
+            UpdateSheet()
+        }
         .sheet(isPresented: $showOnboarding) {
             OnboardingView { state.settings.hasCompletedOnboarding = true; showOnboarding = false }
                 .environment(state)

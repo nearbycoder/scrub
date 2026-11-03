@@ -27,16 +27,17 @@
 
 | | |
 |---|---|
-| **Smart Clean** | Covers user and system caches, logs, crash reports, temporary files, browser caches (Safari, Chrome, Edge, Brave, Arc, Firefox, Opera, Vivaldi), developer junk (Xcode DerivedData, simulator caches, device support, Homebrew, npm, Yarn, pnpm, Bun, pip, uv, CocoaPods, Gradle, Cargo, Go), chat and AI app caches, old installers, leftovers from deleted apps, and the Trash. Results appear in an outline with tri-state checkboxes, so you can review every item before anything is removed. |
+| **Smart Clean** | Covers user and system caches, logs, crash reports, temporary files, browser caches (Safari, Chrome, Edge, Brave, Arc, Firefox, Opera, Vivaldi), developer junk (Xcode DerivedData, simulator caches, device support, Homebrew, npm, Yarn, pnpm, Bun, pip, uv, CocoaPods, Gradle, Cargo, Go), chat and AI app caches, old installers, leftovers from deleted apps, and the Trash. Each category shows its app's icon, a plain-language explanation, a safety rating, and a sortable list of every file, so you can review everything before anything is removed. |
 | **Applications** | A sortable, searchable table of your apps. The inspector lists everything an app leaves behind (Application Support, Caches, Preferences, Containers, Saved State, WebKit, Cookies, HTTP storage, Launch Agents and Daemons, privileged helpers, and vendor folders like `Google/Chrome`). You can uninstall the app or just reset its data. Everything goes to the Trash. |
 | **Space Lens** | A treemap of any folder or drive, with back and forward navigation, a Finder-style path bar, and a largest-files table. You can show items in Finder or move them to the Trash. |
 | **Maintenance** | Rebuilds the Quick Look and Launch Services caches, removes broken launch agents, repairs damaged preference files, clears the download history log, resets font caches, compacts Mail's index, deletes unavailable simulators and runs Homebrew cleanup. It can also flush DNS, free memory, thin Time Machine snapshots, rebuild the icon cache, repair home folder permissions and reindex Spotlight. Admin tasks share **one** password prompt. |
 | **Touch ID for sudo** | One switch writes `/etc/pam.d/sudo_local`, which survives macOS updates. |
 | **Activity** | CPU (per core), memory breakdown and pressure, swap, disk I/O, network, GPU, battery health, cycle count and power, plus a process table you can sort and quit processes from. |
-| **Project Purge** | Finds `node_modules`, `target`, `.build`, `build`, `dist`, `.next`, `DerivedData`, `__pycache__`, `venv`, `Pods` and more across your project folders. Folders that git tracks are protected, and recently active projects start unselected. |
+| **Project Purge** | Finds `node_modules`, `target`, `.build`, `build`, `dist`, `.next`, `DerivedData`, `__pycache__`, `venv`, `Pods` and more across your project folders. Each project appears as a card showing its stack (Node.js, Rust, Swift, Python and others), when it last changed, and a toggle for each build folder. Folders that git tracks are protected, and recently active projects start unselected. |
 | **Installers** | Finds `.dmg`, `.pkg`, `.iso`, `.xip` and installer `.zip` files in Downloads, Desktop, Documents, iCloud Drive, Mail and the Homebrew cache. |
 | **Menu bar** | Live meters, Smart Scan and Free Up Memory. |
 | **History** | A log of every cleanup: what was removed, from where, and how much space it freed. |
+| **Updates** | Scrub checks GitHub for new releases once a day and installs them in place. An update is only installed if it's notarized by Apple and signed by the same developer. |
 
 ### Native by design
 
@@ -75,9 +76,11 @@ Scrub uses standard macOS building blocks: a source-list sidebar, unified toolba
 curl -fsSL https://raw.githubusercontent.com/nearbycoder/scrub/main/install.sh | bash
 ```
 
-**Or download it yourself:** [Scrub.dmg](https://github.com/nearbycoder/scrub/releases/latest/download/Scrub.dmg) or [Scrub.zip](https://github.com/nearbycoder/scrub/releases/latest/download/Scrub.zip), then drag Scrub to Applications.
+**Or download the installer:** open [Scrub.dmg](https://github.com/nearbycoder/scrub/releases/latest/download/Scrub.dmg) and drag Scrub to Applications. A [ZIP](https://github.com/nearbycoder/scrub/releases/latest/download/Scrub.zip) is also available.
 
-Releases are signed with a Developer ID certificate and notarized by Apple, with the ticket stapled to the app, so Scrub opens like any other app you download. To check a copy yourself, run `spctl -a -vv /Applications/Scrub.app`, which should report `source=Notarized Developer ID`.
+<p align="center"><img src="docs/screenshots/installer.png" alt="Scrub installer window" width="520"></p>
+
+The app is signed with a Developer ID certificate and notarized by Apple, and the disk image is notarized too, with tickets stapled to both. Scrub opens like any other app you download. To check a copy yourself, run `spctl -a -vv /Applications/Scrub.app`, which should report `source=Notarized Developer ID`. After that, Scrub keeps itself up to date (**Scrub → Check for Updates…**).
 
 **Requirements:** macOS 26 Tahoe or later. Universal binary for Apple silicon and Intel.
 
@@ -137,7 +140,7 @@ SCRUB_TEAM_ID=YOURTEAMID ./scripts/build-release.sh 1.2.0   # archive, Developer
 gh release create v1.2.0 dist/*
 ```
 
-The script uses Xcode's cloud-managed Developer ID certificate and the account signed in to Xcode, so it doesn't need a local certificate or a password. To also notarize the disk image, provide `notarytool` credentials through `SCRUB_NOTARY_PROFILE`, or through `SCRUB_NOTARY_KEY`, `SCRUB_NOTARY_KEY_ID` and `SCRUB_NOTARY_ISSUER`. Without `SCRUB_TEAM_ID`, the script makes an ad-hoc signed build. That's what [CI](.github/workflows/ci.yml) does on every push.
+The script uses Xcode's cloud-managed Developer ID certificate and the account signed in to Xcode, so it doesn't need a local certificate or a password. It builds the drag-to-install disk image with [dmgbuild](https://github.com/dmgbuild/dmgbuild), using a background rendered by `scripts/render-dmg-background.swift`. It notarizes and staples the disk image with a `notarytool` keychain profile named `scrub-notary`, or with `SCRUB_NOTARY_PROFILE`, or with `SCRUB_NOTARY_KEY`, `SCRUB_NOTARY_KEY_ID` and `SCRUB_NOTARY_ISSUER`. If a Developer ID identity with a local private key is in the keychain, the disk image is code-signed as well. Without `SCRUB_TEAM_ID`, the script makes an ad-hoc signed build. That's what [CI](.github/workflows/ci.yml) does on every push.
 
 ## Acknowledgements
 

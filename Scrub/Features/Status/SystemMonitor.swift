@@ -134,6 +134,7 @@ final class SystemMonitor {
         let wasIdle = consumers.isEmpty
         consumers.insert(consumer)
         if wasIdle { sample(); reschedule() }
+        if consumer == "processes" { sampleProcesses() }
     }
 
     func release(_ consumer: String) {

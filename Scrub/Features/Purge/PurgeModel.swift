@@ -9,11 +9,66 @@ struct BuildArtifact: Identifiable, Hashable {
     var name: String { (path as NSString).lastPathComponent }
 }
 
+/// The technology a project is built with, detected from its manifest files.
+enum ProjectKind: String, Hashable {
+    case node, rust, swift, xcode, python, gradle, flutter, php, ruby, go, cmake, other
+
+    var label: String {
+        switch self {
+        case .node: "Node.js"
+        case .rust: "Rust"
+        case .swift: "Swift Package"
+        case .xcode: "Xcode"
+        case .python: "Python"
+        case .gradle: "Gradle"
+        case .flutter: "Flutter"
+        case .php: "PHP"
+        case .ruby: "Ruby"
+        case .go: "Go"
+        case .cmake: "C/C++"
+        case .other: "Project"
+        }
+    }
+
+    var badge: String {
+        switch self {
+        case .node: "JS"
+        case .rust: "RS"
+        case .swift: "SW"
+        case .xcode: "XC"
+        case .python: "PY"
+        case .gradle: "KT"
+        case .flutter: "FL"
+        case .php: "PHP"
+        case .ruby: "RB"
+        case .go: "GO"
+        case .cmake: "C++"
+        case .other: "{ }"
+        }
+    }
+
+    static func detect(_ dir: String, entries: Set<String>) -> ProjectKind {
+        if entries.contains("Cargo.toml") { return .rust }
+        if entries.contains("Package.swift") { return .swift }
+        if entries.contains("pubspec.yaml") { return .flutter }
+        if entries.contains(where: { $0.hasSuffix(".xcodeproj") || $0.hasSuffix(".xcworkspace") }) || entries.contains("Podfile") { return .xcode }
+        if entries.contains("package.json") { return .node }
+        if ["build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts", "pom.xml"].contains(where: entries.contains) { return .gradle }
+        if ["pyproject.toml", "setup.py", "requirements.txt", "Pipfile"].contains(where: entries.contains) || entries.contains(".venv") || entries.contains("venv") { return .python }
+        if entries.contains("composer.json") { return .php }
+        if entries.contains("Gemfile") { return .ruby }
+        if entries.contains("go.mod") { return .go }
+        if entries.contains("CMakeLists.txt") || entries.contains("Makefile") { return .cmake }
+        return .other
+    }
+}
+
 struct ProjectArtifacts: Identifiable, Hashable {
     var id: String { path }
     let path: String
     let lastActivity: Date?
     var artifacts: [BuildArtifact]
+    var kind: ProjectKind = .other
     var name: String { (path as NSString).lastPathComponent }
     var size: Int64 { artifacts.reduce(0) { $0 + $1.size } }
 }
@@ -101,7 +156,9 @@ final class PurgeModel {
             for (project, artifacts) in sized {
                 let activity = Self.lastActivity(project, ignoring: Set(artifacts.map(\.name)))
                 if activity.map({ $0 > cutoff }) ?? true { recent.formUnion(artifacts.map(\.path)) }
-                result.append(ProjectArtifacts(path: project, lastActivity: activity, artifacts: artifacts.sorted { $0.size > $1.size }))
+                let entries = Set((try? FileManager.default.contentsOfDirectory(atPath: project)) ?? [])
+                result.append(ProjectArtifacts(path: project, lastActivity: activity, artifacts: artifacts.sorted { $0.size > $1.size },
+                                               kind: ProjectKind.detect(project, entries: entries)))
             }
             let sorted = result.sorted { $0.size > $1.size }
             await MainActor.run {

@@ -44,11 +44,11 @@ final class DemoDirector {
             window.makeKeyAndOrderFront(nil)
             NSApp.activate()
         }
-        await wait(1.5)
+        await wait(3)
 
         go(.overview)
         say("Scrub — a free, native Mac cleaner for macOS Tahoe")
-        await wait(4)
+        await wait(4.5)
 
         say("Smart Clean finds caches, logs and leftovers in seconds")
         go(.clean)
@@ -56,10 +56,11 @@ final class DemoDirector {
         await wait(until: { s.clean.phase == .ready })
         await wait(1.5)
         say("Review every category and every file before anything is removed")
-        if let first = s.clean.results.first(where: { $0.isSelected && $0.items.count > 3 }) {
-            s.clean.expanded.insert("rule:" + first.id)
+        for id in ["chrome", "xcode-derived", "user-caches", "homebrew"] where s.clean.resultByID[id] != nil {
+            s.clean.selectedRuleID = id
+            await wait(1.6)
         }
-        await wait(3)
+        await wait(1)
         if let rule = s.clean.results.first(where: { $0.isSelected && $0.rule.group == .developer }) {
             s.clean.setSelected(rule, false)
             await wait(1.2)
@@ -104,7 +105,7 @@ final class DemoDirector {
         go(.purge)
         s.purge.scan()
         await wait(until: { !s.purge.isScanning && !s.purge.projects.isEmpty }, timeout: 30)
-        await wait(3)
+        await wait(5)
         if !s.purge.projects.isEmpty {
             s.purge.purge()
             await wait(until: { !s.purge.isPurging })

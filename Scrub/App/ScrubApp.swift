@@ -16,6 +16,9 @@ struct ScrubApp: App {
         .windowToolbarStyle(.unified)
         .commands {
             CommandGroup(replacing: .newItem) {}
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") { Task { await Updater.shared.check(userInitiated: true) } }
+            }
             CommandMenu("Scan") {
                 Button("Smart Scan") { state.section = .clean; state.clean.scan() }
                     .keyboardShortcut("r", modifiers: [.command])
@@ -54,6 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         SystemMonitor.shared.start()
         DemoDirector.startIfRequested()
+        Updater.shared.checkInBackgroundIfDue()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

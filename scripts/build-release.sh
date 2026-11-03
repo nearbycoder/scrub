@@ -57,13 +57,30 @@ lipo -archs "$APP/Contents/MacOS/Scrub"
 
 ditto -c -k --keepParent "$APP" "$DIST/Scrub.zip"
 
-STAGE="$BUILD/dmg"
-rm -rf "$STAGE" && mkdir -p "$STAGE"
-ditto "$APP" "$STAGE/Scrub.app"
-ln -s /Applications "$STAGE/Applications"
-hdiutil create -volname "Scrub" -srcfolder "$STAGE" -ov -format UDZO -fs APFS "$DIST/Scrub.dmg" >/dev/null
+echo "› Building the installer disk image"
+if [[ ! -x "$BUILD/../dmgvenv/bin/dmgbuild" ]]; then
+  /usr/bin/python3 -m venv "$BUILD/../dmgvenv" && "$BUILD/../dmgvenv/bin/pip" install -q dmgbuild
+fi
+mkdir -p "$BUILD/dmgassets"
+swift scripts/render-dmg-background.swift "$BUILD/dmgassets" >/dev/null
+tiffutil -cathidpicheck "$BUILD/dmgassets/dmg-background.png" "$BUILD/dmgassets/dmg-background@2x.png" \
+  -out "$BUILD/dmgassets/background.tiff" >/dev/null
+"$BUILD/../dmgvenv/bin/dmgbuild" -s scripts/dmg-settings.py -D app="$APP" -D background="$BUILD/dmgassets/background.tiff" \
+  -D icon="$APP/Contents/Resources/AppIcon.icns" "Scrub" "$DIST/Scrub.dmg" >/dev/null
+
+# Sign the disk image when a Developer ID identity with a local private key is available.
+# (Xcode's cloud-managed certificate can sign the app but not a disk image.)
+DMG_IDENTITY=$(security find-identity -v -p codesigning | grep -m1 "Developer ID Application" | sed -E 's/.*"(.*)"/\1/' || true)
+if [[ -n "$DMG_IDENTITY" ]]; then
+  echo "› Signing the disk image as $DMG_IDENTITY"
+  codesign --sign "$DMG_IDENTITY" --timestamp "$DIST/Scrub.dmg"
+fi
 
 notary_args=()
+# A notarytool profile named "scrub-notary" in the login keychain is used automatically.
+if [[ -z "${SCRUB_NOTARY_PROFILE:-}" ]] && xcrun notarytool history --keychain-profile scrub-notary >/dev/null 2>&1; then
+  SCRUB_NOTARY_PROFILE=scrub-notary
+fi
 if [[ -n "${SCRUB_NOTARY_PROFILE:-}" ]]; then
   notary_args=(--keychain-profile "$SCRUB_NOTARY_PROFILE")
 elif [[ -n "${SCRUB_NOTARY_KEY:-}" && -n "${SCRUB_NOTARY_KEY_ID:-}" && -n "${SCRUB_NOTARY_ISSUER:-}" ]]; then
@@ -73,6 +90,7 @@ if (( ${#notary_args} )); then
   echo "› Notarizing the disk image"
   xcrun notarytool submit "$DIST/Scrub.dmg" "${notary_args[@]}" --wait
   xcrun stapler staple "$DIST/Scrub.dmg"
+  xcrun stapler validate "$DIST/Scrub.dmg"
 fi
 
 (cd "$DIST" && shasum -a 256 Scrub.dmg Scrub.zip > SHA256SUMS.txt)

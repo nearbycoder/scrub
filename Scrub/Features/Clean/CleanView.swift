@@ -2,7 +2,6 @@ import SwiftUI
 
 struct CleanView: View {
     @Environment(AppState.self) private var state
-    @State private var selection = Set<String>()
     @State private var confirmPersonal = false
 
     private var model: CleanModel { state.clean }
@@ -31,7 +30,7 @@ struct CleanView: View {
 
     private var subtitle: String {
         switch model.phase {
-        case .ready: "\(model.totalFound.formattedBytes) found"
+        case .ready, .cleaning: "\(model.totalFound.formattedBytes) found in \(model.results.count) categories"
         case .finished: "Cleanup complete"
         default: ""
         }
@@ -39,185 +38,35 @@ struct CleanView: View {
 
     @ViewBuilder private var content: some View {
         switch model.phase {
-        case .idle:
-            ContentUnavailableView {
-                Label("Smart Clean", systemImage: "sparkles")
-            } description: {
-                Text("Find caches, logs, developer files, old installers and leftovers from deleted apps. You'll review everything before anything is removed.")
-            } actions: {
-                Button("Scan") { model.scan() }
-                    .buttonStyle(.glassProminent)
-                    .controlSize(.large)
-                    .keyboardShortcut(.defaultAction)
-            }
+        case .idle: CleanIntro { model.scan() }
         case .scanning:
             ScanningPlaceholder(title: model.currentStep.isEmpty ? "Scanning…" : "\(model.currentStep)…", symbol: "sparkles",
                                 detail: "\(model.scannedFiles.formatted()) files · \(model.scannedBytes.formattedBytes)")
-        case .finished:
-            finished
-        case .ready, .cleaning:
-            results
+        case .finished: CleanFinished()
+        case .ready, .cleaning: browser
         }
     }
 
-    private var finished: some View {
-        ContentUnavailableView {
-            Label("Freed \(model.lastFreed.formattedBytes)", systemImage: "checkmark.circle")
-                .symbolRenderingMode(.multicolor)
-        } description: {
-            let report = model.lastReport
-            Text("Removed \(report?.removed.count ?? 0) items." +
-                 ((report?.failures.isEmpty ?? true) ? "" : " \(report!.failures.count) were skipped because they're in use or protected."))
-        } actions: {
-            Button("Scan Again") { model.scan() }
-            Button("Show History") { state.section = .history }
-        }
-    }
+    // MARK: Browser
 
-    // MARK: Results
-
-    private var results: some View {
-        VStack(spacing: 0) {
-            summary
-                .padding(.horizontal, 20)
-                .padding(.top, 14)
-                .padding(.bottom, 12)
+    private var browser: some View {
+        HStack(spacing: 0) {
+            CategoryList()
+                .frame(width: 320)
+                .frame(maxHeight: .infinity)
             Divider()
-            table
+            Group {
+                if let id = model.selectedRuleID, let result = model.resultByID[id] {
+                    CategoryDetail(result: result)
+                } else {
+                    ContentUnavailableView("Select a Category", systemImage: "sidebar.left",
+                                           description: Text("Choose a category to see what's in it."))
+                }
+            }
+            .frame(minWidth: 380, maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .safeAreaInset(edge: .bottom, spacing: 0) { actionBar }
-    }
-
-    private var summary: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(model.totalSelected.formattedBytes)
-                    .font(.title.weight(.semibold))
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-                Text("selected of \(model.totalFound.formattedBytes)")
-                    .foregroundStyle(.secondary)
-                Spacer()
-                if model.lastScanDate != nil {
-                    Text("Checked \(model.scannedFiles.formatted()) files in \(model.scanDuration.formatted(.number.precision(.fractionLength(1)))) s")
-                        .font(.callout)
-                        .foregroundStyle(.tertiary)
-                }
-            }
-            .animation(.snappy, value: model.totalSelected)
-            StorageBar(segments: CleanGroup.allCases.map {
-                .init(id: $0.rawValue, label: $0.title, bytes: model.selectedSize(of: $0), color: $0.color)
-            }, total: max(model.totalFound, 1), height: 10)
-            if model.skippedForAccess > 0 && !state.hasFullDiskAccess {
-                FullDiskAccessNotice(message: "\(model.skippedForAccess) locations, like Safari and Mail, were skipped.")
-            }
-        }
-    }
-
-    private var table: some View {
-        Table(of: CleanRow.self, selection: $selection) {
-            TableColumn("Name") { row in nameCell(row) }
-                .width(min: 280, ideal: 460)
-            TableColumn("Items") { row in
-                if case .rule(let id) = row.kind, let r = model.resultByID[id] {
-                    Text(r.items.count.formatted()).foregroundStyle(.secondary).monospacedDigit()
-                }
-            }
-            .width(min: 44, ideal: 56, max: 80)
-            TableColumn("Last Modified") { row in
-                if case .item(let path, _) = row.kind, let d = model.itemByPath[path]?.modified {
-                    Text(d, format: .relative(presentation: .named)).foregroundStyle(.secondary)
-                }
-            }
-            .width(min: 90, ideal: 130, max: 180)
-            TableColumn("Size") { row in sizeCell(row) }
-                .width(min: 70, ideal: 90, max: 120)
-        } rows: {
-            ForEach(model.rows) { group in
-                DisclosureTableRow(group, isExpanded: expansion(group.id)) {
-                    ForEach(group.children) { rule in
-                        DisclosureTableRow(rule, isExpanded: expansion(rule.id)) {
-                            ForEach(rule.children) { item in TableRow(item) }
-                        }
-                    }
-                }
-            }
-        }
-        .contextMenu(forSelectionType: String.self) { ids in
-            let paths = ids.filter { model.itemByPath[$0] != nil }
-            if !paths.isEmpty { FileContextMenu(paths: Array(paths)) }
-        } primaryAction: { ids in
-            let paths = ids.filter { model.itemByPath[$0] != nil }
-            if !paths.isEmpty { SystemAccess.revealInFinder(Array(paths)) }
-        }
-        .disabled(model.phase == .cleaning)
-    }
-
-    private func expansion(_ id: String) -> Binding<Bool> {
-        Binding(get: { model.expanded.contains(id) },
-                set: { if $0 { model.expanded.insert(id) } else { model.expanded.remove(id) } })
-    }
-
-    @ViewBuilder private func nameCell(_ row: CleanRow) -> some View {
-        switch row.kind {
-        case .group(let group):
-            let rules = model.results(in: group).filter { $0.blockedBy == nil }
-            Toggle(sources: rules.map { r in
-                Binding(get: { r.isSelected }, set: { model.setSelected(r, $0) })
-            }, isOn: \.self) {
-                Label {
-                    Text(group.title).fontWeight(.semibold)
-                } icon: {
-                    Image(systemName: group.symbol).foregroundStyle(group.color)
-                }
-            }
-            .help(group.subtitle)
-        case .rule(let id):
-            if let r = model.resultByID[id] {
-                Toggle(isOn: Binding(get: { r.isSelected && r.blockedBy == nil }, set: { model.setSelected(r, $0) })) {
-                    HStack(spacing: 6) {
-                        Text(r.rule.name)
-                        if let blocked = r.blockedBy {
-                            Text("— \(blocked)").foregroundStyle(.orange)
-                        } else if let note = r.rule.note {
-                            Image(systemName: "info.circle").foregroundStyle(.tertiary).help(note)
-                        }
-                    }
-                }
-                .disabled(r.blockedBy != nil)
-            }
-        case .item(let path, let ruleID):
-            if let r = model.resultByID[ruleID], let item = model.itemByPath[path] {
-                Toggle(isOn: Binding(
-                    get: { !r.excluded.contains(path) },
-                    set: { if $0 { r.excluded.remove(path) } else { r.excluded.insert(path) } }
-                )) {
-                    HStack(spacing: 6) {
-                        FileIcon(path: path)
-                        Text(item.name).lineLimit(1)
-                        Text(Paths.abbreviate((path as NSString).deletingLastPathComponent))
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                }
-                .disabled(!r.isActive)
-            }
-        }
-    }
-
-    @ViewBuilder private func sizeCell(_ row: CleanRow) -> some View {
-        switch row.kind {
-        case .group(let group):
-            SizeText(bytes: model.selectedSize(of: group)).fontWeight(.semibold)
-        case .rule(let id):
-            if let r = model.resultByID[id] {
-                SizeText(bytes: r.isActive ? r.selectedSize : r.totalSize)
-                    .foregroundStyle(r.isActive ? .primary : .secondary)
-            }
-        case .item(let path, _):
-            if let item = model.itemByPath[path] { SizeText(bytes: item.size).foregroundStyle(.secondary) }
-        }
     }
 
     private var actionBar: some View {
@@ -242,5 +91,307 @@ struct CleanView: View {
             .disabled(model.totalSelected == 0 || model.phase != .ready)
             .keyboardShortcut(.defaultAction)
         }
+    }
+}
+
+// MARK: - Intro
+
+private struct CleanIntro: View {
+    let onScan: () -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 26) {
+                VStack(spacing: 12) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 44, weight: .light))
+                        .foregroundStyle(.tint)
+                        .frame(width: 88, height: 88)
+                        .background(.tint.opacity(0.12), in: .circle)
+                    Text("Smart Clean").font(.largeTitle.weight(.semibold))
+                    Text("Find caches, logs, developer files, old installers and leftovers from deleted apps.\nYou'll review every item before anything is removed.")
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
+                    Button(action: onScan) {
+                        Text("Scan").frame(minWidth: 120)
+                    }
+                    .buttonStyle(.glassProminent)
+                    .controlSize(.extraLarge)
+                    .keyboardShortcut(.defaultAction)
+                    .padding(.top, 6)
+                }
+
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 12)], spacing: 12) {
+                    ForEach(CleanGroup.allCases.filter { $0 != .separately }) { group in
+                        HStack(alignment: .top, spacing: 12) {
+                            SymbolTile(symbol: group.symbol, color: group.color, size: 32)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(group.title).font(.headline)
+                                Text(group.subtitle).font(.caption).foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(14)
+                        .frame(maxWidth: .infinity, minHeight: 84, alignment: .topLeading)
+                        .background(.background.secondary, in: .rect(cornerRadius: 12))
+                    }
+                }
+                .frame(maxWidth: 760)
+            }
+            .padding(40)
+            .frame(maxWidth: .infinity)
+        }
+    }
+}
+
+// MARK: - Finished
+
+private struct CleanFinished: View {
+    @Environment(AppState.self) private var state
+
+    var body: some View {
+        let model = state.clean
+        let report = model.lastReport
+        VStack(spacing: 18) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 64))
+                .symbolRenderingMode(.multicolor)
+                .symbolEffect(.bounce, value: model.lastFreed)
+            VStack(spacing: 6) {
+                Text("Freed \(model.lastFreed.formattedBytes)").font(.largeTitle.weight(.semibold))
+                Text("Removed \((report?.removed.count ?? 0).formatted()) items" +
+                     ((report?.failures.isEmpty ?? true) ? "." : ". \(report!.failures.count) were skipped because they're in use or protected."))
+                    .foregroundStyle(.secondary)
+            }
+            HStack {
+                Button("Show in History") { state.section = .history }
+                Button("Scan Again") { model.scan() }
+                    .buttonStyle(.glassProminent)
+            }
+            .controlSize(.large)
+        }
+        .padding(40)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// MARK: - Category list
+
+private struct CategoryList: View {
+    @Environment(AppState.self) private var state
+
+    var body: some View {
+        let model = state.clean
+        VStack(spacing: 0) {
+            summary
+            Divider()
+            List(selection: Binding(get: { model.selectedRuleID }, set: { model.selectedRuleID = $0 })) {
+                ForEach(CleanGroup.allCases) { group in
+                    let results = model.results(in: group)
+                    if !results.isEmpty {
+                        Section {
+                            ForEach(results) { CategoryRow(result: $0).tag(Optional($0.id)) }
+                        } header: {
+                            GroupHeader(group: group, results: results)
+                        }
+                    }
+                }
+            }
+            .listStyle(.inset)
+            .scrollContentBackground(.hidden)
+        }
+        .background(.background)
+    }
+
+    private var summary: some View {
+        let model = state.clean
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(model.totalSelected.formattedBytes)
+                    .font(.system(size: 28, weight: .semibold))
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                Text("selected").foregroundStyle(.secondary)
+                Spacer()
+            }
+            .animation(.snappy, value: model.totalSelected)
+            StorageBar(segments: CleanGroup.allCases.map {
+                .init(id: $0.rawValue, label: $0.title, bytes: model.selectedSize(of: $0), color: $0.color)
+            }, total: max(model.totalFound, 1), height: 8, showsLegend: false)
+            HStack {
+                Text("of \(model.totalFound.formattedBytes) found")
+                Spacer()
+                Text("\(model.scannedFiles.formatted()) files in \(model.scanDuration.formatted(.number.precision(.fractionLength(1)))) s")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .monospacedDigit()
+            if model.skippedForAccess > 0 && !state.hasFullDiskAccess {
+                Button {
+                    SystemAccess.openFullDiskAccessSettings()
+                } label: {
+                    Label("Allow Full Disk Access to scan Safari, Mail and app data", systemImage: "lock.shield")
+                        .font(.caption)
+                }
+                .buttonStyle(.link)
+                .foregroundStyle(.orange)
+            }
+        }
+        .padding(16)
+    }
+}
+
+private struct GroupHeader: View {
+    @Environment(AppState.self) private var state
+    let group: CleanGroup
+    let results: [CleanRuleResult]
+
+    var body: some View {
+        let model = state.clean
+        let selectable = results.filter { $0.blockedBy == nil }
+        HStack {
+            Toggle(sources: selectable.map { r in
+                Binding(get: { r.isSelected }, set: { model.setSelected(r, $0) })
+            }, isOn: \.self) {
+                Text(group.title)
+            }
+            .toggleStyle(.checkbox)
+            .disabled(selectable.isEmpty)
+            Spacer()
+            Text(model.selectedSize(of: group).formattedBytes)
+                .monospacedDigit()
+                .contentTransition(.numericText())
+        }
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(.secondary)
+    }
+}
+
+private struct CategoryRow: View {
+    @Environment(AppState.self) private var state
+    let result: CleanRuleResult
+
+    var body: some View {
+        let model = state.clean
+        HStack(spacing: 10) {
+            Toggle("", isOn: Binding(get: { result.isActive }, set: { model.setSelected(result, $0) }))
+                .toggleStyle(.checkbox)
+                .labelsHidden()
+                .disabled(result.blockedBy != nil)
+            RuleIcon(rule: result.rule, size: 28)
+                .saturation(result.blockedBy == nil ? 1 : 0)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(result.rule.name).lineLimit(1)
+                Group {
+                    if let blocked = result.blockedBy {
+                        Text(blocked).foregroundStyle(.orange)
+                    } else {
+                        Text("\(result.items.count.formatted()) item\(result.items.count == 1 ? "" : "s")")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .font(.caption)
+            }
+            Spacer(minLength: 6)
+            Text((result.isActive ? result.selectedSize : result.totalSize).formattedBytes)
+                .monospacedDigit()
+                .foregroundStyle(result.isActive ? .primary : .secondary)
+        }
+        .padding(.vertical, 3)
+        .opacity(result.blockedBy == nil ? 1 : 0.7)
+    }
+}
+
+// MARK: - Detail
+
+private struct CategoryDetail: View {
+    @Environment(AppState.self) private var state
+    let result: CleanRuleResult
+    @State private var sortOrder = [KeyPathComparator(\CleanItem.size, order: .reverse)]
+    @State private var selection = Set<String>()
+
+    var body: some View {
+        let model = state.clean
+        let rule = result.rule
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .center, spacing: 14) {
+                    RuleIcon(rule: rule, size: 52)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(rule.name).font(.title2.weight(.semibold))
+                        Text(rule.group.title).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text((result.isActive ? result.selectedSize : result.totalSize).formattedBytes)
+                            .font(.title2.weight(.semibold))
+                            .monospacedDigit()
+                            .contentTransition(.numericText())
+                        Text("\(result.selectedItems.count) of \(result.items.count) items")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Text(rule.about)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 10) {
+                    Toggle("Include", isOn: Binding(get: { result.isActive }, set: { model.setSelected(result, $0) }))
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                        .disabled(result.blockedBy != nil)
+                        .fixedSize()
+                    Label(rule.safety.title, systemImage: rule.safety.symbol)
+                        .font(.callout.weight(.medium))
+                        .foregroundStyle(rule.safety.color)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(rule.safety.color.opacity(0.12), in: .capsule)
+                    if let blocked = result.blockedBy {
+                        if let id = rule.bundleIDs.first(where: { !NSRunningApplication.runningApplications(withBundleIdentifier: $0).isEmpty }) {
+                            Button("Quit and Rescan") {
+                                NSRunningApplication.runningApplications(withBundleIdentifier: id).forEach { $0.terminate() }
+                                Task { try? await Task.sleep(for: .seconds(2)); model.scan() }
+                            }
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+                .lineLimit(1)
+            }
+            .padding(20)
+
+            Divider()
+
+            Table(result.items.sorted(using: sortOrder), selection: $selection, sortOrder: $sortOrder) {
+                TableColumn("Name", value: \.name) { item in
+                    Toggle(isOn: Binding(
+                        get: { !result.excluded.contains(item.path) },
+                        set: { if $0 { result.excluded.remove(item.path) } else { result.excluded.insert(item.path) } }
+                    )) {
+                        HStack(spacing: 6) {
+                            FileIcon(path: item.path)
+                            Text(item.name).lineLimit(1).truncationMode(.middle)
+                        }
+                    }
+                    .disabled(!result.isActive)
+                }
+                .width(min: 180, ideal: 300)
+                TableColumn("Last Modified", value: \.modifiedSort) { item in
+                    if let d = item.modified { Text(d, format: .relative(presentation: .named)).foregroundStyle(.secondary) }
+                }
+                .width(min: 90, ideal: 120, max: 160)
+                TableColumn("Size", value: \.size) { item in
+                    SizeText(bytes: item.size).foregroundStyle(.secondary)
+                }
+                .width(min: 70, ideal: 85, max: 110)
+            }
+            .contextMenu(forSelectionType: String.self) { ids in
+                if !ids.isEmpty { FileContextMenu(paths: Array(ids)) }
+            } primaryAction: { ids in SystemAccess.revealInFinder(Array(ids)) }
+        }
+        .disabled(model.phase == .cleaning)
+        .id(result.id)
     }
 }
