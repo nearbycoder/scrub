@@ -31,12 +31,12 @@
   --hl:rgba(255,255,255,.95);
   --shadow:0 1px 2px rgba(15,23,42,.05),0 18px 50px -18px rgba(40,50,120,.28);
   --card:rgba(255,255,255,.6);
-  --sel:rgba(79,70,229,.13);
+  --sel:rgba(29,111,242,.13);
   --chip:rgba(255,255,255,.65);
   --code:rgba(12,18,44,.06);
-  --b1:rgba(45,212,191,.55);--b2:rgba(99,102,241,.42);--b3:rgba(167,139,250,.45);--b4:rgba(34,211,238,.4);
-  --grad-text:linear-gradient(100deg,#0f766e 0%,#1d4ed8 48%,#6d28d9 100%);
-  --btn:linear-gradient(135deg,#0f766e 0%,#3730a3 60%,#5b21b6 100%);
+  --b1:rgba(46,220,251,.5);--b2:rgba(26,80,236,.38);--b3:rgba(56,189,248,.42);--b4:rgba(34,211,238,.4);
+  --grad-text:linear-gradient(100deg,#0891b2 0%,#1d6ff2 50%,#1a50ec 100%);
+  --btn:linear-gradient(135deg,#0891b2 0%,#1d6ff2 55%,#1a3fd0 100%);
   --ring-track:rgba(20,28,64,.08);
   --ok:#047857;--warn:#a16207;
   --radius:24px;
@@ -56,11 +56,11 @@
     --hl:rgba(255,255,255,.16);
     --shadow:0 1px 2px rgba(0,0,0,.3),0 24px 60px -20px rgba(0,0,0,.6);
     --card:rgba(255,255,255,.05);
-    --sel:rgba(129,140,248,.2);
+    --sel:rgba(56,189,248,.2);
     --chip:rgba(255,255,255,.07);
     --code:rgba(0,0,0,.32);
-    --b1:rgba(13,148,136,.55);--b2:rgba(79,70,229,.5);--b3:rgba(124,58,237,.45);--b4:rgba(8,145,178,.45);
-    --grad-text:linear-gradient(100deg,#5eead4 0%,#93c5fd 48%,#c4b5fd 100%);
+    --b1:rgba(8,145,178,.55);--b2:rgba(26,80,236,.5);--b3:rgba(29,111,242,.42);--b4:rgba(34,211,238,.4);
+    --grad-text:linear-gradient(100deg,#67e8f9 0%,#7dd3fc 48%,#93c5fd 100%);
     --ring-track:rgba(255,255,255,.08);
     --ok:#6ee7b7;--warn:#fcd34d;
   }
@@ -76,7 +76,7 @@ code,kbd{font-family:var(--mono)}
 .sr{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .skip{position:absolute;left:16px;top:-60px;z-index:100;padding:10px 16px;border-radius:12px;background:var(--text);color:var(--bg);font-weight:600;text-decoration:none}
 .skip:focus{top:16px}
-:focus-visible{outline:2px solid #6366f1;outline-offset:3px;border-radius:8px}
+:focus-visible{outline:2px solid #1d6ff2;outline-offset:3px;border-radius:8px}
 
 /* Backdrop */
 .bg{position:fixed;inset:0;z-index:-1;background:var(--bg);overflow:hidden;pointer-events:none}
@@ -136,7 +136,7 @@ section{padding:96px 0}
 
 /* Mockup */
 .stage{position:relative;margin:64px auto 0;max-width:1040px}
-.stage::before{content:"";position:absolute;inset:8% 6% -4%;background:radial-gradient(closest-side,rgba(99,102,241,.45),transparent);filter:blur(40px);z-index:-1}
+.stage::before{content:"";position:absolute;inset:8% 6% -4%;background:radial-gradient(closest-side,rgba(29,111,242,.45),transparent);filter:blur(40px);z-index:-1}
 .win{display:grid;grid-template-columns:216px 1fr;text-align:left;border-radius:26px;padding:8px;min-height:480px;font-size:13px}
 .side{border-radius:19px;padding:14px 10px;background:var(--glass-2);border:1px solid var(--line);box-shadow:inset 0 1px 0 var(--hl)}
 .lights{display:flex;gap:8px;padding:2px 6px 16px}
@@ -370,16 +370,17 @@ footer nav a:hover{color:var(--text);text-decoration:underline;text-underline-of
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
   <defs>
-    <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#14b8a6"/><stop offset=".5" stop-color="#2f80ed"/><stop offset="1" stop-color="#5b4be6"/></linearGradient>
+    <linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2EDCFB"/><stop offset="1" stop-color="#1A50EC"/></linearGradient>
+    <linearGradient id="lo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".85"/><stop offset="1" stop-color="#fff" stop-opacity=".35"/></linearGradient>
     <linearGradient id="lh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".32"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/></linearGradient>
-    <linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2dd4bf"/><stop offset=".5" stop-color="#3b82f6"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient>
-    <linearGradient id="sg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2dd4bf"/><stop offset="1" stop-color="#818cf8"/></linearGradient>
-    <linearGradient id="sf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6366f1" stop-opacity=".28"/><stop offset="1" stop-color="#6366f1" stop-opacity="0"/></linearGradient>
+    <linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#1a50ec"/></linearGradient>
+    <linearGradient id="sg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#1d6ff2"/></linearGradient>
+    <linearGradient id="sf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1d6ff2" stop-opacity=".28"/><stop offset="1" stop-color="#1d6ff2" stop-opacity="0"/></linearGradient>
     <symbol id="logo" viewBox="0 0 64 64">
-      <rect width="64" height="64" rx="14" fill="url(#lg)"/><rect width="64" height="64" rx="14" fill="url(#lh)"/>
-      <path fill="#fff" d="M29 15c1.7 12.6 5 15.9 17.6 17.6C34 34.3 30.7 37.6 29 50.2 27.3 37.6 24 34.3 11.4 32.6 24 30.9 27.3 27.6 29 15z"/>
-      <path fill="#fff" d="M47 10.5c.7 4.6 1.8 5.7 6.4 6.4-4.6.7-5.7 1.8-6.4 6.4-.7-4.6-1.8-5.7-6.4-6.4 4.6-.7 5.7-1.8 6.4-6.4z"/>
-      <circle cx="47.5" cy="46.5" r="4.2" fill="#fff" fill-opacity=".28" stroke="#fff" stroke-width="2"/>
+      <rect width="64" height="64" rx="14.5" fill="url(#lg)"/>
+      <circle cx="32" cy="32" r="20.6" fill="url(#lo)" stroke="#fff" stroke-opacity=".6" stroke-width="1"/>
+      <path d="M19.6 30.8 A15.7 15.7 0 0 1 26.6 18.3" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round"/>
+      <path fill="#fff" d="M34.25 23.75C34.9 30.1 35.4 33.6 44.9 34.25 35.4 34.9 34.9 38.4 34.25 44.75 33.6 38.4 33.1 34.9 23.6 34.25 33.1 33.6 33.6 30.1 34.25 23.75Z"/>
     </symbol>
     <symbol id="chk" viewBox="0 0 24 24"><path d="M5 12.5l4.2 4.2L19 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="cpy" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="3"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></g></symbol>

@@ -14,6 +14,7 @@
 		17F7AE61C32ED51DFDD04166 /* DemoDirector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1229A516BF04571EFBDD8309 /* DemoDirector.swift */; };
 		1A1A8DBB67A4EE77326AAFED /* Remover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34F97AF04A627AD0CE346994 /* Remover.swift */; };
 		2022C6ACDAE29C53FF9BAC7C /* UpdateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3CE072F1221DC3AD9147EC1 /* UpdateSheet.swift */; };
+		21132E67EB483DBC7D3F69F4 /* BrandMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC22C7249E5C05D4781573B6 /* BrandMark.swift */; };
 		29F605F2810D23393365E4B7 /* CleanDescriptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B34B4F3A5D70E8F411F30C19 /* CleanDescriptions.swift */; };
 		36FC154D3AB6512E6194AE36 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A81042328E359081A16DC6 /* HistoryView.swift */; };
 		3DBF7F2A572C0BAF900965AB /* PurgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBAF0A53D69FDBFC35A9FCF1 /* PurgeView.swift */; };
@@ -108,6 +109,7 @@
 		E3CE072F1221DC3AD9147EC1 /* UpdateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateSheet.swift; sourceTree = "<group>"; };
 		E50D29BF692E371B9903B243 /* SystemAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemAccess.swift; sourceTree = "<group>"; };
 		EBAF0A53D69FDBFC35A9FCF1 /* PurgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurgeView.swift; sourceTree = "<group>"; };
+		EC22C7249E5C05D4781573B6 /* BrandMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandMark.swift; sourceTree = "<group>"; };
 		F233D6FC8E8D521F69D910BF /* UninstallModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UninstallModel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -311,6 +313,7 @@
 			isa = PBXGroup;
 			children = (
 				05124FE45C5D1881539CB7BB /* AppSection.swift */,
+				EC22C7249E5C05D4781573B6 /* BrandMark.swift */,
 				34B8B7795AF2DBD85B7D2F28 /* Components.swift */,
 			);
 			path = UI;
@@ -417,6 +420,7 @@
 				B8A8F89158ABB8A510C244F1 /* AppSection.swift in Sources */,
 				D2789730B4995D68ABB8DD2E /* AppSettings.swift in Sources */,
 				E2403160D252497D2981DD4E /* AppState.swift in Sources */,
+				21132E67EB483DBC7D3F69F4 /* BrandMark.swift in Sources */,
 				AFB755F1E8CA47B36984CE78 /* CleanCatalog.swift in Sources */,
 				29F605F2810D23393365E4B7 /* CleanDescriptions.swift in Sources */,
 				F01EE6E64E5CB14CE5B332FA /* CleanModel.swift in Sources */,
@@ -509,7 +513,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -530,7 +534,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.2.1;
+				MARKETING_VERSION = 1.2.2;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -595,7 +599,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -610,7 +614,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.2.1;
+				MARKETING_VERSION = 1.2.2;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";

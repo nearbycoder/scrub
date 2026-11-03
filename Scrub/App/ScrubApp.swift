@@ -47,7 +47,7 @@ struct ScrubApp: App {
             MenuBarView()
                 .environment(state)
         } label: {
-            Image(systemName: "sparkles")
+            Image(nsImage: BrandMark.menuBarImage)
         }
         .menuBarExtraStyle(.window)
     }

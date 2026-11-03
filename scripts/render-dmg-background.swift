@@ -21,10 +21,11 @@ func render(scale: CGFloat, to path: String) {
 
     // Mid-tone gradient: Finder labels are black in Light Mode and white in Dark Mode, and both stay legible here.
     let space = CGColorSpace(name: CGColorSpace.sRGB)!
+    // Matches the app icon's aqua-to-blue gradient, kept mid-tone.
     let bg = CGGradient(colorsSpace: space, colors: [
-        CGColor(srgbRed: 0.30, green: 0.43, blue: 0.62, alpha: 1),
-        CGColor(srgbRed: 0.38, green: 0.39, blue: 0.66, alpha: 1),
-        CGColor(srgbRed: 0.45, green: 0.37, blue: 0.64, alpha: 1),
+        CGColor(srgbRed: 0.10, green: 0.56, blue: 0.80, alpha: 1),
+        CGColor(srgbRed: 0.13, green: 0.46, blue: 0.86, alpha: 1),
+        CGColor(srgbRed: 0.17, green: 0.38, blue: 0.88, alpha: 1),
     ] as CFArray, locations: [0, 0.55, 1])!
     ctx.drawLinearGradient(bg, start: .zero, end: CGPoint(x: width, y: height), options: [])
     let glow = CGGradient(colorsSpace: space, colors: [CGColor(gray: 1, alpha: 0.16), CGColor(gray: 1, alpha: 0)] as CFArray, locations: [0, 1])!
