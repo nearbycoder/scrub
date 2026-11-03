@@ -27,7 +27,11 @@ struct HistoryView: View {
                         }
                         .width(min: 50, ideal: 60, max: 80)
                         TableColumn("Freed", value: \.bytesFreed) { e in
-                            SizeText(bytes: e.bytesFreed).foregroundStyle(e.bytesFreed > 0 ? .primary : .tertiary)
+                            if e.bytesFreed > 0 {
+                                SizeText(bytes: e.bytesFreed)
+                            } else {
+                                Text("—").foregroundStyle(.tertiary).frame(maxWidth: .infinity, alignment: .trailing)
+                            }
                         }
                         .width(min: 70, ideal: 90, max: 110)
                     }
@@ -37,7 +41,7 @@ struct HistoryView: View {
             }
         }
         .navigationTitle("History")
-        .navigationSubtitle(entries.isEmpty ? "" : "\(state.history.totalFreed.formattedBytes) freed across \(entries.count) runs")
+        .navigationSubtitle(entries.isEmpty ? "" : "\(state.history.totalFreed.formattedBytes) freed across \(entries.count.counted("run"))")
         .toolbar {
             ToolbarItem {
                 Button(role: .destructive) { confirmClear = true } label: { Label("Clear History", systemImage: "trash") }
@@ -55,7 +59,7 @@ struct HistoryView: View {
                 Section {
                     LabeledContent("Action", value: entry.kind.label)
                     LabeledContent("Date") { Text(entry.date, format: .dateTime) }
-                    LabeledContent("Space freed", value: entry.bytesFreed.formattedBytes)
+                    if entry.bytesFreed > 0 { LabeledContent("Space freed", value: entry.bytesFreed.formattedBytes) }
                 }
                 if !entry.details.isEmpty {
                     Section("Items") {

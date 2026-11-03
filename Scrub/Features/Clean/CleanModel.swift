@@ -230,7 +230,7 @@ final class CleanModel {
                 self.lastReport = final
                 self.lastFreed = final.freedBytes
                 self.phase = .finished
-                HistoryStore.shared.record(.clean, title: "Cleaned \(work.count) categories",
+                HistoryStore.shared.record(.clean, title: "Cleaned \(work.count.counted("category", "categories"))",
                                            bytes: final.freedBytes, items: final.removed.count,
                                            details: final.removed.map(Paths.abbreviate))
             }

@@ -1,5 +1,4 @@
 import SwiftUI
-import Charts
 
 struct StatusView: View {
     @Environment(AppState.self) private var state
@@ -218,9 +217,18 @@ enum ProcessIconCache {
     private static var cache: [Int32: NSImage?] = [:]
     static func icon(for pid: Int32) -> NSImage? {
         if let hit = cache[pid] { return hit }
-        let icon = NSRunningApplication(processIdentifier: pid)?.icon
+        let icon = NSRunningApplication(processIdentifier: pid)?.icon ?? bundleIcon(for: pid)
         if cache.count > 2000 { cache.removeAll() }
         cache[pid] = icon
         return icon
+    }
+
+    /// Helpers and background processes inside an app bundle get the outermost app's icon.
+    private static func bundleIcon(for pid: Int32) -> NSImage? {
+        var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
+        guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { return nil }
+        let path = String(cString: buffer)
+        guard let range = path.range(of: ".app/") else { return nil }
+        return IconCache.icon(for: String(path[..<range.lowerBound]) + ".app")
     }
 }

@@ -146,3 +146,53 @@ final class ProjectKindTests: XCTestCase {
         XCTAssertEqual(ProjectKind.detect("/x", entries: ["README.md"]), .other)
     }
 }
+
+final class InstallerTests: XCTestCase {
+    func testHomebrewHashPrefixIsStripped() {
+        let hash = String(repeating: "a1", count: 32)
+        XCTAssertEqual(InstallerFile.readableName("\(hash)--LocalSend-1.18.2.dmg"), "LocalSend-1.18.2.dmg")
+        XCTAssertEqual(InstallerFile.readableName("android-studio--2026.2.dmg"), "android-studio--2026.2.dmg")
+        XCTAssertEqual(InstallerFile.readableName("Setup.pkg"), "Setup.pkg")
+    }
+
+    func testHashedDownloadIsListedOnce() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+        try FileManager.default.createDirectory(atPath: dir + "/downloads", withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: dir + "/Cask", withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let hash = String(repeating: "b2", count: 32)
+        let target = dir + "/downloads/\(hash)--Tool-1.0.dmg"
+        FileManager.default.createFile(atPath: target, contents: Data(count: 10))
+        try FileManager.default.createSymbolicLink(atPath: dir + "/Cask/tool--1.0.dmg", withDestinationPath: "../downloads/\(hash)--Tool-1.0.dmg")
+
+        var seen = Set<String>(), found: [InstallerFile] = []
+        InstallersModel.collect(dir + "/Cask", depth: 1, source: "Homebrew", seen: &seen, into: &found)
+        InstallersModel.collect(dir + "/downloads", depth: 1, source: "Homebrew", seen: &seen, into: &found)
+        // Outside Homebrew's cache the link is ignored and only the real file is listed.
+        XCTAssertEqual(found.map(\.path), [(target as NSString).standardizingPath])
+        XCTAssertEqual(found.first?.name, "Tool-1.0.dmg")
+    }
+
+    func testLinksOutsideHomebrewAreNotFollowed() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+        let elsewhere = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: elsewhere, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: dir); try? FileManager.default.removeItem(atPath: elsewhere) }
+        FileManager.default.createFile(atPath: elsewhere + "/Important.dmg", contents: Data(count: 10))
+        try FileManager.default.createSymbolicLink(atPath: dir + "/Important.dmg", withDestinationPath: elsewhere + "/Important.dmg")
+
+        var seen = Set<String>(), found: [InstallerFile] = []
+        InstallersModel.collect(dir, depth: 1, source: "Downloads", seen: &seen, into: &found)
+        XCTAssertTrue(found.isEmpty)
+    }
+}
+
+final class FormattingTests: XCTestCase {
+    func testCounts() {
+        XCTAssertEqual(1.counted("task"), "1 task")
+        XCTAssertEqual(3.counted("task"), "3 tasks")
+        XCTAssertEqual(2.counted("category", "categories"), "2 categories")
+        XCTAssertEqual(1_200.counted("file"), "1,200 files")
+    }
+}

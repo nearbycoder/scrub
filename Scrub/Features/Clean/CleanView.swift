@@ -30,7 +30,7 @@ struct CleanView: View {
 
     private var subtitle: String {
         switch model.phase {
-        case .ready, .cleaning: "\(model.totalFound.formattedBytes) found in \(model.results.count) categories"
+        case .ready, .cleaning: "\(model.totalFound.formattedBytes) found in \(model.results.count.counted("category", "categories"))"
         case .finished: "Cleanup complete"
         default: ""
         }
@@ -121,23 +121,27 @@ private struct CleanIntro: View {
                     .padding(.top, 6)
                 }
 
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 12)], spacing: 12) {
-                    ForEach(CleanGroup.allCases.filter { $0 != .separately }) { group in
-                        HStack(alignment: .top, spacing: 12) {
-                            SymbolTile(symbol: group.symbol, color: group.color, size: 32)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(group.title).font(.headline)
-                                Text(group.subtitle).font(.caption).foregroundStyle(.secondary)
-                                    .fixedSize(horizontal: false, vertical: true)
+                // What gets checked, as one grouped list like a System Settings pane.
+                let groups = CleanGroup.allCases.filter { $0 != .separately }
+                VStack(spacing: 0) {
+                    ForEach(groups.indices, id: \.self) { index in
+                        let group = groups[index]
+                        HStack(spacing: 12) {
+                            SymbolTile(symbol: group.symbol, color: group.color, size: 28)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(group.title).fontWeight(.medium)
+                                Text(group.subtitle).font(.callout).foregroundStyle(.secondary)
                             }
                             Spacer(minLength: 0)
                         }
-                        .padding(14)
-                        .frame(maxWidth: .infinity, minHeight: 84, alignment: .topLeading)
-                        .background(.background.secondary, in: .rect(cornerRadius: 12))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 9)
+                        if index < groups.count - 1 { Divider().padding(.leading, 54) }
                     }
                 }
-                .frame(maxWidth: 760)
+                .background(.background.secondary, in: .rect(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.separator.opacity(0.5)))
+                .frame(maxWidth: 560)
             }
             .padding(40)
             .frame(maxWidth: .infinity)
@@ -282,7 +286,7 @@ private struct CategoryRow: View {
             RuleIcon(rule: result.rule, size: 28)
                 .saturation(result.blockedBy == nil ? 1 : 0)
             VStack(alignment: .leading, spacing: 1) {
-                Text(result.rule.name).lineLimit(1)
+                Text(result.rule.name).lineLimit(1).help(result.rule.name)
                 Group {
                     if let blocked = result.blockedBy {
                         Text(blocked).foregroundStyle(.orange)
@@ -348,7 +352,7 @@ private struct CategoryDetail: View {
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
                         .background(rule.safety.color.opacity(0.12), in: .capsule)
-                    if let blocked = result.blockedBy {
+                    if result.blockedBy != nil {
                         if let id = rule.bundleIDs.first(where: { !NSRunningApplication.runningApplications(withBundleIdentifier: $0).isEmpty }) {
                             Button("Quit and Rescan") {
                                 NSRunningApplication.runningApplications(withBundleIdentifier: id).forEach { $0.terminate() }
@@ -370,10 +374,7 @@ private struct CategoryDetail: View {
                         get: { !result.excluded.contains(item.path) },
                         set: { if $0 { result.excluded.remove(item.path) } else { result.excluded.insert(item.path) } }
                     )) {
-                        HStack(spacing: 6) {
-                            FileIcon(path: item.path)
-                            Text(item.name).lineLimit(1).truncationMode(.middle)
-                        }
+                        ItemLabel(item: item)
                     }
                     .disabled(!result.isActive)
                 }
@@ -393,5 +394,40 @@ private struct CategoryDetail: View {
         }
         .disabled(model.phase == .cleaning)
         .id(result.id)
+    }
+}
+
+/// A file or folder in a category. Folders named after an installed app's bundle identifier show
+/// that app's name and icon, so `com.surfshark.vpnclient.macos.direct` reads as Surfshark.
+private struct ItemLabel: View {
+    let item: CleanItem
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if let app = OwningApp.lookup(item.name) {
+                FileIcon(path: app.path)
+                Text(app.name).lineLimit(1)
+                Text(item.name).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.middle)
+            } else {
+                FileIcon(path: item.path)
+                Text(item.name).lineLimit(1).truncationMode(.middle)
+            }
+        }
+    }
+}
+
+enum OwningApp {
+    private static var cache: [String: (name: String, path: String)?] = [:]
+
+    static func lookup(_ fileName: String) -> (name: String, path: String)? {
+        if let hit = cache[fileName] { return hit }
+        var id = fileName
+        for suffix in [".plist", ".savedState", ".binarycookies"] where id.hasSuffix(suffix) { id = String(id.dropLast(suffix.count)) }
+        var result: (name: String, path: String)?
+        if OrphanFinder.isBundleIdentifier(id), let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) {
+            result = (FileManager.default.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: ""), url.path)
+        }
+        cache[fileName] = result
+        return result
     }
 }

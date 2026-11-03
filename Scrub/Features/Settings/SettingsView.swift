@@ -4,12 +4,12 @@ import ServiceManagement
 struct SettingsView: View {
     var body: some View {
         TabView {
-            Tab("General", systemImage: "gearshape") { GeneralSettings() }
-            Tab("Protected", systemImage: "lock.shield") { ProtectedSettings() }
-            Tab("Projects", systemImage: "folder") { ProjectSettings() }
-            Tab("About", systemImage: "info.circle") { AboutSettings() }
+            // Each pane is sized to its content, and the window resizes between them like System Settings.
+            Tab("General", systemImage: "gearshape") { GeneralSettings().frame(width: 560, height: 610) }
+            Tab("Protected", systemImage: "lock.shield") { ProtectedSettings().frame(width: 560, height: 440) }
+            Tab("Projects", systemImage: "folder") { ProjectSettings().frame(width: 560, height: 440) }
+            Tab("About", systemImage: "info.circle") { AboutSettings().frame(width: 560, height: 380) }
         }
-        .frame(width: 560, height: 440)
     }
 }
 
@@ -142,8 +142,10 @@ private struct AboutSettings: View {
         VStack(spacing: 14) {
             Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 80, height: 80)
             Text("Scrub").font(.title.weight(.semibold))
-            Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")")
+            Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0") (\(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"))")
                 .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+            Button("Check for Updates…") { Task { await Updater.shared.check(userInitiated: true) } }
             Text("A free, open-source Mac cleaner and optimizer.\nMIT License.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)

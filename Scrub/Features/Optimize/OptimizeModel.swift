@@ -159,7 +159,7 @@ final class OptimizeModel {
             isRunning = false
             finishedAt = .now
             let doneCount = status.values.filter { if case .done = $0 { return true }; return false }.count
-            HistoryStore.shared.record(.optimize, title: "Ran \(doneCount) maintenance tasks", bytes: 0, items: doneCount,
+            HistoryStore.shared.record(.optimize, title: "Ran \(doneCount.counted("maintenance task"))", bytes: 0, items: doneCount,
                                        details: chosen.filter { if case .done = status[$0.id] { return true }; return false }.map(\.title))
         }
     }

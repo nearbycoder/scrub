@@ -39,6 +39,28 @@ final class DiskNode: Identifiable, Hashable {
         return rootPath ?? "/" + name
     }()
 
+    /// Bundles Finder shows as a single item, like apps and packages.
+    var isPackage: Bool {
+        guard isDirectory else { return false }
+        let ext = (name as NSString).pathExtension.lowercased()
+        return ["app", "bundle", "framework", "plugin", "appex", "pkg", "photoslibrary", "musiclibrary", "xcarchive"].contains(ext)
+    }
+
+    /// The name to show. Simulator devices are folders named by UUID, so they're shown by the
+    /// device name and OS version Xcode gave them instead.
+    lazy var title: String = {
+        // Finder hides the extension of apps.
+        if isDirectory && name.hasSuffix(".app") { return String(name.dropLast(4)) }
+        guard isDirectory, name.count == 36, parent?.name == "Devices", parent?.parent?.name == "CoreSimulator",
+              let plist = NSDictionary(contentsOfFile: path + "/device.plist"),
+              let device = plist["name"] as? String else { return name }
+        // "com.apple.CoreSimulator.SimRuntime.iOS-26-1" → "iOS 26.1"
+        guard let runtime = (plist["runtime"] as? String)?.split(separator: ".").last else { return device }
+        let parts = runtime.split(separator: "-")
+        guard let os = parts.first else { return device }
+        return "\(device) (\(os) \(parts.dropFirst().joined(separator: ".")))"
+    }()
+
     /// Children sorted by size, plus one tile for files too small to show individually.
     var displayChildren: [DiskNode] {
         if let cachedDisplay { return cachedDisplay }

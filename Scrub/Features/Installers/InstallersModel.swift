@@ -7,7 +7,20 @@ struct InstallerFile: Identifiable, Hashable {
     let size: Int64
     let modified: Date
     let source: String
-    var name: String { (path as NSString).lastPathComponent }
+    /// What to call the file. Homebrew keeps downloads under a content hash and links them from a
+    /// readable name, so the link's name is used when there is one.
+    var displayName: String? = nil
+    var name: String {
+        // Cask links are named `token--version.ext`.
+        displayName?.replacingOccurrences(of: "--", with: " ") ?? Self.readableName((path as NSString).lastPathComponent)
+    }
+
+    /// Strips the `<sha256>--` prefix Homebrew puts on cached downloads.
+    static func readableName(_ file: String) -> String {
+        guard let range = file.range(of: "--"), file.distance(from: file.startIndex, to: range.lowerBound) == 64,
+              file[..<range.lowerBound].allSatisfy(\.isHexDigit) else { return file }
+        return String(file[range.upperBound...])
+    }
     var ext: String { (path as NSString).pathExtension.lowercased() }
 }
 
@@ -18,8 +31,8 @@ final class InstallersModel {
         ("~/Downloads", "Downloads", 3),
         ("~/Desktop", "Desktop", 2),
         ("~/Documents", "Documents", 2),
-        ("~/Library/Caches/Homebrew/downloads", "Homebrew", 1),
         ("~/Library/Caches/Homebrew/Cask", "Homebrew", 1),
+        ("~/Library/Caches/Homebrew/downloads", "Homebrew", 1),
         ("~/Library/Mobile Documents/com~apple~CloudDocs/Downloads", "iCloud Drive", 2),
         ("~/Library/Containers/com.apple.mail/Data/Library/Mail Downloads", "Mail", 3),
         ("~/Library/Group Containers/6N38VWS5BX.ru.keepcoder.Telegram/appstore/account-*/postbox/media", "Telegram", 1),
@@ -56,7 +69,8 @@ final class InstallersModel {
                 found.append(InstallerFile(path: app, size: 0, modified: Paths.modificationDate(app) ?? .now, source: "macOS Installer"))
             }
             let sizes = DiskWalker.measure(found.map(\.path))
-            found = found.map { InstallerFile(path: $0.path, size: sizes[$0.path]?.size ?? 0, modified: $0.modified, source: $0.source) }
+            found = found.map { InstallerFile(path: $0.path, size: sizes[$0.path]?.size ?? 0, modified: $0.modified,
+                                              source: $0.source, displayName: $0.displayName) }
             let cutoff = Date().addingTimeInterval(-Double(ageDays) * 86_400)
             let recent = Set(found.filter { $0.modified > cutoff }.map(\.path))
             let sorted = found.sorted { $0.size > $1.size }
@@ -68,10 +82,23 @@ final class InstallersModel {
         }
     }
 
+    static var homebrewCache: String { Paths.expand("~/Library/Caches/Homebrew") }
+
     static func collect(_ dir: String, depth: Int, source: String, seen: inout Set<String>, into found: inout [InstallerFile]) {
         guard depth > 0, let entries = try? FileManager.default.contentsOfDirectory(atPath: dir) else { return }
         for entry in entries where !entry.hasPrefix(".") {
-            let path = dir + "/" + entry
+            var path = dir + "/" + entry
+            var displayName: String?
+            // Homebrew's Cask folder links readable names to hashed files in its downloads folder.
+            // Follow those so each download is listed once under its real path. Any other link is
+            // skipped: removing it would free nothing, and its target may be somewhere Scrub
+            // shouldn't touch.
+            if let target = try? FileManager.default.destinationOfSymbolicLink(atPath: path) {
+                let resolved = ((target.hasPrefix("/") ? target : dir + "/" + target) as NSString).standardizingPath
+                guard resolved.hasPrefix(Self.homebrewCache + "/"), FileManager.default.fileExists(atPath: resolved) else { continue }
+                path = resolved
+                displayName = entry
+            }
             let ext = (entry as NSString).pathExtension.lowercased()
             var isDir: ObjCBool = false
             guard FileManager.default.fileExists(atPath: path, isDirectory: &isDir) else { continue }
@@ -79,8 +106,9 @@ final class InstallersModel {
             if isInstaller {
                 // .pkg can be a bundle directory; treat both forms as one item.
                 guard seen.insert(path).inserted else { continue }
-                found.append(InstallerFile(path: path, size: 0, modified: Paths.modificationDate(path) ?? .now, source: source))
-            } else if isDir.boolValue && !entry.hasSuffix(".app") {
+                found.append(InstallerFile(path: path, size: 0, modified: Paths.modificationDate(path) ?? .now,
+                                           source: source, displayName: displayName))
+            } else if isDir.boolValue && !entry.hasSuffix(".app") && displayName == nil {
                 collect(path, depth: depth - 1, source: source, seen: &seen, into: &found)
             }
         }
@@ -116,7 +144,7 @@ final class InstallersModel {
                 self.files.removeAll { removed.contains($0.path) }
                 self.lastFreed = final.freedBytes
                 self.isRemoving = false
-                HistoryStore.shared.record(.installers, title: "Removed \(final.removed.count) installers",
+                HistoryStore.shared.record(.installers, title: "Removed \(final.removed.count.counted("installer"))",
                                            bytes: final.freedBytes, items: final.removed.count,
                                            details: final.removed.map(Paths.abbreviate))
             }

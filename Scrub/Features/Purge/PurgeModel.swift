@@ -240,7 +240,7 @@ final class PurgeModel {
                 }
                 self.lastFreed = report.freedBytes
                 self.isPurging = false
-                HistoryStore.shared.record(.purge, title: "Purged \(report.removed.count) build folders",
+                HistoryStore.shared.record(.purge, title: "Purged \(report.removed.count.counted("build folder"))",
                                            bytes: report.freedBytes, items: report.removed.count,
                                            details: report.removed.map(Paths.abbreviate))
             }

@@ -29,10 +29,10 @@ struct AnalyzeView: View {
                 scopePicker
             }
         }
-        .navigationTitle(model.current?.name ?? "Space Lens")
+        .navigationTitle(model.current?.title ?? "Space Lens")
         .navigationSubtitle(subtitle)
         .toolbar { toolbar }
-        .confirmationDialog("Move “\(pendingTrash?.name ?? "")” to the Trash?",
+        .confirmationDialog("Move “\(pendingTrash?.title ?? "")” to the Trash?",
                             isPresented: Binding(get: { pendingTrash != nil }, set: { if !$0 { pendingTrash = nil } })) {
             Button("Move to Trash", role: .destructive) { if let n = pendingTrash { model.trash(n) }; pendingTrash = nil }
         } message: { Text("This frees \(pendingTrash?.size.formattedBytes ?? "") once you empty the Trash.") }
@@ -48,22 +48,22 @@ struct AnalyzeView: View {
     }
 
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
-        ToolbarItemGroup(placement: .navigation) {
-            ControlGroup {
-                Button { model.goBack() } label: { Label("Back", systemImage: "chevron.left") }
-                    .disabled(!model.canGoBack)
-                Button { model.goForward() } label: { Label("Forward", systemImage: "chevron.right") }
-                    .disabled(!model.canGoForward)
+        if model.root != nil {
+            ToolbarItemGroup(placement: .navigation) {
+                ControlGroup {
+                    Button { model.goBack() } label: { Label("Back", systemImage: "chevron.left") }
+                        .disabled(!model.canGoBack)
+                    Button { model.goForward() } label: { Label("Forward", systemImage: "chevron.right") }
+                        .disabled(!model.canGoForward)
+                }
+                .controlGroupStyle(.navigation)
             }
-            .controlGroupStyle(.navigation)
-            .disabled(model.root == nil)
-        }
-        ToolbarItem(placement: .principal) {
-            Picker("View", selection: $mode) {
-                ForEach(Mode.allCases) { Text($0.rawValue).tag($0) }
+            ToolbarItem(placement: .principal) {
+                Picker("View", selection: $mode) {
+                    ForEach(Mode.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
             }
-            .pickerStyle(.segmented)
-            .disabled(model.root == nil)
         }
         ToolbarItemGroup(placement: .primaryAction) {
             Menu {
@@ -125,7 +125,7 @@ struct AnalyzeView: View {
                     } else {
                         FileIcon(path: child.path)
                     }
-                    Text(child.name).lineLimit(1)
+                    Text(child.title).lineLimit(1)
                     if child.needsFullDiskAccess {
                         Image(systemName: "lock").foregroundStyle(.orange).help("Allow Full Disk Access to measure this folder")
                     } else if child.isUnreadable {
@@ -215,7 +215,7 @@ private struct PathBar: View {
                         Button { onSelect(crumb) } label: {
                             HStack(spacing: 4) {
                                 FileIcon(path: crumb.path, size: 14)
-                                Text(crumb.name).lineLimit(1)
+                                Text(crumb.title).lineLimit(1)
                             }
                         }
                         .buttonStyle(.accessoryBar)
@@ -292,12 +292,30 @@ struct TreemapView<Menu: View>: View {
                     ctx.fill(Path(roundedRect: r, cornerRadius: min(3, min(r.width, r.height) / 4)),
                              with: .color(.white.opacity(sub.node.isSynthetic ? 0.04 : (sub.node.isDirectory ? 0.12 : 0.2))))
                     ctx.stroke(Path(roundedRect: r, cornerRadius: min(3, min(r.width, r.height) / 4)), with: .color(separator.opacity(0.35)), lineWidth: 0.5)
+                    // Label the bigger subfolders too, so a large block isn't a blank rectangle.
+                    if r.width > 80 && r.height > 30 && !sub.node.isSynthetic {
+                        let labelRect = CGRect(x: r.minX + 5, y: r.minY + 3, width: r.width - 10, height: 13)
+                        ctx.draw(Text(sub.node.title).font(.system(size: 10, weight: .medium)).foregroundStyle(.white.opacity(0.9)), in: labelRect)
+                        if r.height > 44 {
+                            ctx.draw(Text(sub.node.size.formattedBytes).font(.system(size: 9.5)).foregroundStyle(.white.opacity(0.7)),
+                                     in: labelRect.offsetBy(dx: 0, dy: 12))
+                        }
+                    }
                 }
             }
             ctx.stroke(path, with: .color(separator), lineWidth: 1)
 
+            // Apps and other bundles are one item to the user, so they show their icon, not their insides.
+            if tile.node.isPackage && rect.width > 56 && rect.height > 64 {
+                let side = min(64, rect.width - 16, rect.height - 40)
+                if side >= 24 {
+                    let icon = Image(nsImage: IconCache.icon(for: tile.node.path))
+                    ctx.draw(icon, in: CGRect(x: rect.midX - side / 2, y: rect.midY - side / 2 + 10, width: side, height: side))
+                }
+            }
+
             if rect.width > 70 && rect.height > 34 {
-                let title = Text(tile.node.name).font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
+                let title = Text(tile.node.title).font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
                 let detail = Text(tile.node.size.formattedBytes).font(.system(size: 10)).foregroundStyle(.white.opacity(0.85))
                 let labelRect = CGRect(x: rect.minX + 6, y: rect.minY + 4, width: rect.width - 12, height: 14)
                 ctx.draw(title, in: labelRect)
@@ -323,7 +341,7 @@ struct TreemapView<Menu: View>: View {
     @ViewBuilder private var hoverTag: some View {
         if let hovered {
             HStack(spacing: 8) {
-                Text(hovered.name).fontWeight(.medium).lineLimit(1)
+                Text(hovered.title).fontWeight(.medium).lineLimit(1)
                 Text(hovered.size.formattedBytes).monospacedDigit().foregroundStyle(.secondary)
                 if node.size > 0 {
                     Text(Double(hovered.size) / Double(node.size), format: .percent.precision(.fractionLength(0)))
@@ -353,7 +371,7 @@ struct TreemapLayout {
         let rect = CGRect(origin: .zero, size: size)
         tiles = Treemap.layout(Array(node.displayChildren.prefix(150)), in: rect)
         nested = [:]
-        for tile in tiles where tile.node.isDirectory && tile.rect.width > 48 && tile.rect.height > 48 {
+        for tile in tiles where tile.node.isDirectory && !tile.node.isPackage && tile.rect.width > 48 && tile.rect.height > 48 {
             let inner = CGRect(x: tile.rect.minX + 4, y: tile.rect.minY + (tile.rect.height > 50 ? 32 : 20),
                                width: tile.rect.width - 8, height: tile.rect.height - (tile.rect.height > 50 ? 36 : 24))
             guard inner.width > 8, inner.height > 8 else { continue }

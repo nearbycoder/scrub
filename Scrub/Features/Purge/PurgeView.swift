@@ -18,13 +18,14 @@ struct PurgeView: View {
             .navigationTitle("Project Purge")
             .navigationSubtitle(subtitle)
             .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Picker("Show", selection: $filter) {
-                        ForEach(Filter.allCases) { Text($0.rawValue).tag($0) }
+                if hasResults {
+                    ToolbarItem(placement: .principal) {
+                        Picker("Show", selection: $filter) {
+                            ForEach(Filter.allCases) { Text($0.rawValue).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                        .help("Inactive projects haven't changed in the last \(state.settings.purgeRecentDays) days")
                     }
-                    .pickerStyle(.segmented)
-                    .disabled(model.projects.isEmpty)
-                    .help("Inactive projects haven't changed in the last \(state.settings.purgeRecentDays) days")
                 }
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button { addRoot() } label: { Label("Add Folder", systemImage: "folder.badge.plus") }
@@ -33,8 +34,8 @@ struct PurgeView: View {
                         .disabled(model.isScanning || model.isPurging)
                 }
             }
-            .searchable(text: $search, placement: .toolbar, prompt: "Search Projects")
-            .confirmationDialog("Remove \(model.selectedArtifacts.count) build folders?", isPresented: $confirm) {
+            .modifier(SearchWhen(active: hasResults, text: $search, prompt: "Search Projects"))
+            .confirmationDialog("Remove \(model.selectedArtifacts.count.counted("build folder"))?", isPresented: $confirm) {
                 Button(state.settings.purgeRemovalMode == .trash ? "Move to Trash" : "Delete \(model.selectedSize.formattedBytes)", role: .destructive) {
                     model.purge()
                 }
@@ -43,10 +44,12 @@ struct PurgeView: View {
             }
     }
 
+    private var hasResults: Bool { !model.projects.isEmpty && !model.isScanning }
+
     private var subtitle: String {
         guard !model.projects.isEmpty else { return model.existingRoots.map(Paths.abbreviate).joined(separator: ", ") }
         let folders = model.projects.reduce(0) { $0 + $1.artifacts.count }
-        return "\(model.totalSize.formattedBytes) in \(folders) folders across \(model.projects.count) projects"
+        return "\(model.totalSize.formattedBytes) in \(folders.counted("folder")) across \(model.projects.count.counted("project"))"
     }
 
     private var visibleProjects: [ProjectArtifacts] {
@@ -55,6 +58,16 @@ struct PurgeView: View {
             (filter == .all || (p.lastActivity ?? .distantPast) < cutoff)
                 && (search.isEmpty || p.name.localizedCaseInsensitiveContains(search) || p.kind.label.localizedCaseInsensitiveContains(search))
         }
+    }
+
+    /// Projects grouped under the folder they were found in, so each card doesn't repeat it.
+    private var groups: [(root: String, projects: [ProjectArtifacts])] {
+        let roots = model.existingRoots.sorted { $0.count > $1.count }
+        let byRoot = Dictionary(grouping: visibleProjects) { p in
+            roots.first { p.path.hasPrefix($0 + "/") } ?? (p.path as NSString).deletingLastPathComponent
+        }
+        return byRoot.map { ($0.key, $0.value) }
+            .sorted { $0.projects.reduce(0) { $0 + $1.size } > $1.projects.reduce(0) { $0 + $1.size } }
     }
 
     @ViewBuilder private var content: some View {
@@ -82,10 +95,25 @@ struct PurgeView: View {
         } else {
             let largest = model.projects.map(\.size).max() ?? 1
             List {
-                ForEach(visibleProjects) { project in
-                    ProjectCard(project: project, largest: largest)
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
+                ForEach(groups, id: \.root) { group in
+                    Section {
+                        ForEach(group.projects) { project in
+                            ProjectCard(project: project, largest: largest, root: group.root)
+                                .listRowSeparator(.hidden)
+                                .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
+                        }
+                    } header: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "folder.fill").foregroundStyle(.secondary)
+                            Text(Paths.abbreviate(group.root))
+                            Spacer()
+                            Text(group.projects.reduce(0) { $0 + $1.size }.formattedBytes)
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 4)
+                    }
                 }
                 Color.clear.frame(height: 70).listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
@@ -132,6 +160,7 @@ private struct ProjectCard: View {
     @Environment(AppState.self) private var state
     let project: ProjectArtifacts
     let largest: Int64
+    let root: String
 
     var body: some View {
         let model = state.purge
@@ -168,10 +197,14 @@ private struct ProjectCard: View {
                             .foregroundStyle(recent ? .green : .secondary)
                         Text(recent ? "Active, changed \(d.relativeDescription)" : "Last changed \(d.relativeDescription)")
                     }
-                    Text("·")
-                    Text(Paths.abbreviate((project.path as NSString).deletingLastPathComponent))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                    // Only nested projects need a location; the section header names the folder.
+                    let parent = (project.path as NSString).deletingLastPathComponent
+                    if parent != root, parent.hasPrefix(root + "/") {
+                        Text("·")
+                        Text(String(parent.dropFirst(root.count + 1)))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -194,6 +227,11 @@ private struct ProjectCard: View {
         }
         .padding(14)
         .background(.background.secondary, in: .rect(cornerRadius: 12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(selected.isEmpty ? Color.clear : Color.accentColor.opacity(0.45), lineWidth: 1)
+        }
+        .animation(.snappy, value: selected.isEmpty)
         .contextMenu {
             Button("Show in Finder") { SystemAccess.revealInFinder([project.path]) }
             Button("Copy Path") { SystemAccess.copyToPasteboard(project.path) }
@@ -270,6 +308,21 @@ struct KindBadge: View {
         case .go: .teal
         case .cmake: .gray
         case .other: .secondary
+        }
+    }
+}
+
+/// Adds a toolbar search field only while there's something to search.
+struct SearchWhen: ViewModifier {
+    let active: Bool
+    @Binding var text: String
+    let prompt: String
+
+    func body(content: Content) -> some View {
+        if active {
+            content.searchable(text: $text, placement: .toolbar, prompt: prompt)
+        } else {
+            content
         }
     }
 }

@@ -11,7 +11,7 @@ struct InstallersView: View {
     var body: some View {
         content
             .navigationTitle("Installers")
-            .navigationSubtitle(model.files.isEmpty ? "" : "\(model.files.count) files · \(model.totalSize.formattedBytes)")
+            .navigationSubtitle(model.files.isEmpty ? "" : "\(model.files.count.counted("file")) · \(model.totalSize.formattedBytes)")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button { model.scan() } label: { Label("Rescan", systemImage: "arrow.clockwise") }
@@ -19,7 +19,7 @@ struct InstallersView: View {
                 }
             }
             .onAppear { if model.files.isEmpty && !model.isScanning && model.lastFreed == nil { model.scan() } }
-            .confirmationDialog("Move \(model.selected.count) installers to the Trash?", isPresented: $confirm) {
+            .confirmationDialog("Move \(model.selected.count.counted("installer")) to the Trash?", isPresented: $confirm) {
                 Button("Move to Trash", role: .destructive) { model.removeSelected() }
             }
     }

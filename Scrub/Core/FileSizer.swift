@@ -16,10 +16,23 @@ enum FileSizer {
     }
 }
 
-extension Int64 {
-    var formattedBytes: String {
-        ByteCountFormatter.string(fromByteCount: self, countStyle: .file)
+extension Int {
+    /// "1 file", "3 files". Pass `plural` for nouns that don't just take an "s".
+    func counted(_ singular: String, _ plural: String? = nil) -> String {
+        "\(formatted()) \(self == 1 ? singular : plural ?? singular + "s")"
     }
+}
+
+extension Int64 {
+    /// Sizes the way Finder writes them ("1.2 GB", "0 KB").
+    var formattedBytes: String { Self.byteFormatter.string(fromByteCount: self) }
+
+    private static let byteFormatter: ByteCountFormatter = {
+        let f = ByteCountFormatter()
+        f.countStyle = .file
+        f.allowsNonnumericFormatting = false
+        return f
+    }()
 }
 
 extension Date {

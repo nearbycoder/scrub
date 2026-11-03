@@ -125,7 +125,7 @@ enum CleanCatalog {
                   note: "Skips caches of apps that are running and Apple account or sync data."),
         CleanRule(id: "user-logs", name: "User Logs", group: .system, symbol: "doc.text.fill",
                   paths: ["~/Library/Logs"], excludeNames: ["Scrub"]),
-        CleanRule(id: "crash-reports", name: "Crash & Diagnostic Reports", group: .system, symbol: "exclamationmark.triangle.fill",
+        CleanRule(id: "crash-reports", name: "Crash Reports", group: .system, symbol: "exclamationmark.triangle.fill",
                   paths: ["~/Library/Logs/DiagnosticReports", "/Library/Logs/DiagnosticReports"]),
         CleanRule(id: "saved-state", name: "Saved Application State", group: .system, symbol: "macwindow.on.rectangle",
                   paths: ["~/Library/Saved Application State"],
@@ -134,11 +134,11 @@ enum CleanCatalog {
                   paths: [NSTemporaryDirectory()], minAgeDays: 3),
         CleanRule(id: "mail-downloads", name: "Mail Attachment Copies", group: .system, symbol: "envelope.fill",
                   paths: ["~/Library/Containers/com.apple.mail/Data/Library/Mail Downloads"], bundleIDs: ["com.apple.mail"]),
-        CleanRule(id: "quicklook-cache", name: "Spotlight & Help Caches", group: .system, symbol: "magnifyingglass",
+        CleanRule(id: "quicklook-cache", name: "Help & Spotlight", group: .system, symbol: "magnifyingglass",
                   paths: ["~/Library/Caches/com.apple.helpd", "~/Library/Caches/com.apple.parsecd",
                           "~/Library/Caches/GeoServices", "~/Library/Caches/com.apple.preferencepanes.usercache"],
                   scope: .items),
-        CleanRule(id: "ios-updates", name: "iPhone & iPad Software Updates", group: .system, symbol: "iphone",
+        CleanRule(id: "ios-updates", name: "iPhone & iPad Updates", group: .system, symbol: "iphone",
                   paths: ["~/Library/iTunes/iPhone Software Updates", "~/Library/iTunes/iPad Software Updates"]),
 
         // MARK: Browsers
@@ -182,7 +182,7 @@ enum CleanCatalog {
         CleanRule(id: "simulator-caches", name: "Simulator Caches", group: .developer, symbol: "iphone.gen3",
                   paths: ["~/Library/Developer/CoreSimulator/Caches", "~/Library/Logs/CoreSimulator"],
                   bundleIDs: ["com.apple.iphonesimulator"]),
-        CleanRule(id: "device-support", name: "Old Device Support Files", group: .developer, symbol: "ipad.and.iphone",
+        CleanRule(id: "device-support", name: "Old Device Support", group: .developer, symbol: "ipad.and.iphone",
                   paths: ["~/Library/Developer/Xcode/iOS DeviceSupport", "~/Library/Developer/Xcode/watchOS DeviceSupport",
                           "~/Library/Developer/Xcode/tvOS DeviceSupport", "~/Library/Developer/Xcode/visionOS DeviceSupport"],
                   minAgeDays: 60, note: "Symbols for devices not connected in the last 60 days."),
@@ -191,7 +191,7 @@ enum CleanCatalog {
                   note: "Contains dSYMs needed to symbolicate crash reports for shipped builds."),
         CleanRule(id: "homebrew", name: "Homebrew Downloads", group: .developer, symbol: "mug.fill",
                   paths: ["~/Library/Caches/Homebrew"], excludeNames: ["Cask"]),
-        CleanRule(id: "editors", name: "VS Code, Cursor & Zed Caches", group: .developer, symbol: "chevron.left.forwardslash.chevron.right",
+        CleanRule(id: "editors", name: "Code Editor Caches", group: .developer, symbol: "chevron.left.forwardslash.chevron.right",
                   paths: electron("~/Library/Application Support/Code") + electron("~/Library/Application Support/Cursor")
                     + electron("~/Library/Application Support/Windsurf") + ["~/Library/Caches/com.microsoft.VSCode.ShipIt",
                     "~/Library/Caches/Zed", "~/Library/Caches/dev.zed.Zed", "~/Library/Application Support/Code/CachedExtensionVSIXs"],
@@ -248,7 +248,7 @@ enum CleanCatalog {
                   paths: electron("~/Library/Application Support/Notion") + electron("~/Library/Application Support/Figma")
                     + electron("~/Library/Application Support/Linear") + ["~/Library/Caches/com.figma.Desktop", "~/Library/Caches/notion.id"],
                   bundleIDs: ["notion.id", "com.figma.Desktop", "com.linear"]),
-        CleanRule(id: "ai-apps", name: "Claude, ChatGPT & AI Tools", group: .apps, symbol: "brain.head.profile.fill",
+        CleanRule(id: "ai-apps", name: "AI App Caches", group: .apps, symbol: "brain.head.profile.fill",
                   paths: electron("~/Library/Application Support/Claude") + ["~/Library/Caches/com.openai.chat",
                     "~/Library/Caches/claude-cli-nodejs", "~/Library/Caches/com.anthropic.claudefordesktop.ShipIt",
                     "~/Library/Caches/com.openai.codex", "~/.cache/opencode"],
@@ -260,10 +260,10 @@ enum CleanCatalog {
                   scope: .items, note: "Downloaded update packages already installed."),
 
         // MARK: Leftovers & installers
-        CleanRule(id: "orphans", name: "Leftovers of Removed Apps", group: .leftovers, symbol: "questionmark.folder",
+        CleanRule(id: "orphans", name: "Removed App Leftovers", group: .leftovers, symbol: "questionmark.folder",
                   paths: [], scope: .items, selectedByDefault: false,
                   note: "Matched by bundle identifier and untouched for 15+ days. Review before removing."),
-        CleanRule(id: "old-installers", name: "Installers in Downloads & Desktop", group: .installers, symbol: "opticaldisc.fill",
+        CleanRule(id: "old-installers", name: "Old Installers", group: .installers, symbol: "opticaldisc.fill",
                   paths: ["~/Downloads", "~/Desktop"], selectedByDefault: false, minAgeDays: 14,
                   extensions: ["dmg", "pkg", "mpkg", "iso", "xip"]),
         CleanRule(id: "trash", name: "Trash", group: .trash, symbol: "trash.fill",

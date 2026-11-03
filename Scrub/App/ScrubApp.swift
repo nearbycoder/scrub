@@ -55,6 +55,12 @@ struct ScrubApp: App {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // `-appearance light` or `-appearance dark` overrides the system setting, for screenshots.
+        switch UserDefaults.standard.string(forKey: "appearance") {
+        case "light": NSApp.appearance = NSAppearance(named: .aqua)
+        case "dark": NSApp.appearance = NSAppearance(named: .darkAqua)
+        default: break
+        }
         SystemMonitor.shared.start()
         DemoDirector.startIfRequested()
         Updater.shared.checkInBackgroundIfDue()

@@ -366,6 +366,12 @@ final class SystemMonitor {
     private func sampleProcesses() {
         let sampler = processSampler
         Task.detached(priority: .utility) { [weak self] in
+            // CPU percentages are a difference between two readings. Without a recent baseline every
+            // process would show 0%, so take one and measure over half a second.
+            if sampler.baselineAge > 5 {
+                _ = sampler.sample()
+                try? await Task.sleep(for: .milliseconds(500))
+            }
             let list = sampler.sample()
             await MainActor.run { self?.topProcesses = list }
         }
@@ -384,6 +390,13 @@ final class ProcessSampler: @unchecked Sendable {
         return Double(info.numer) / Double(info.denom)
     }()
     private var names: [pid_t: (String, String)] = [:]
+
+    /// Seconds since the last reading, or infinity before the first one.
+    var baselineAge: Double {
+        lock.lock(); defer { lock.unlock() }
+        guard previousTime > 0 else { return .infinity }
+        return Double(mach_absolute_time() &- previousTime) * timebase / 1e9
+    }
 
     func sample(limit: Int = 60) -> [ProcessSample] {
         lock.lock(); defer { lock.unlock() }
@@ -454,7 +467,7 @@ final class ProcessSampler: @unchecked Sendable {
 
 extension Double {
     var formattedRate: String {
-        ByteCountFormatter.string(fromByteCount: Int64(self), countStyle: .file) + "/s"
+        Int64(self).formattedBytes + "/s"
     }
     var percent: String { "\(Int((self * 100).rounded()))%" }
 }

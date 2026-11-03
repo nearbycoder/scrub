@@ -76,7 +76,7 @@ struct OverviewView: View {
         return Grid(horizontalSpacing: 14, verticalSpacing: 14) {
             GridRow {
                 MetricTile(title: "CPU", symbol: "cpu", value: m.cpuUsage.percent,
-                           detail: String(format: "Load %.2f", m.loadAverage.0), color: .green,
+                           detail: "\(m.coreUsage.count) cores", color: .green,
                            history: m.cpuHistory, maxValue: 1)
                 MetricTile(title: "Memory", symbol: "memorychip", value: m.memoryUsed.formattedBytes,
                            detail: "Pressure \(m.pressureLabel.lowercased())",
@@ -88,7 +88,7 @@ struct OverviewView: View {
                                value: "\(b.level)%",
                                detail: [b.isCharging ? "Charging" : (b.isPluggedIn ? "Plugged in" : "On battery"),
                                         b.health.map { "\($0)% health" }].compactMap { $0 }.joined(separator: " · "),
-                               color: .green, history: [])
+                               color: .green, history: [], level: Double(b.level) / 100)
                 } else {
                     MetricTile(title: "Disk", symbol: "internaldrive", value: (m.diskReadRate + m.diskWriteRate).formattedRate,
                                detail: "Read and write", color: .teal, history: m.diskHistory)
@@ -126,7 +126,7 @@ struct OverviewView: View {
                               detail: "\(state.clean.scannedBytes.formattedBytes) checked so far.", isBusy: true))
         case .ready:
             rows.append(.init(symbol: "sparkles", color: .orange, title: "\(state.clean.totalSelected.formattedBytes) can be cleaned",
-                              detail: "\(state.clean.selectedItemCount) items selected across \(state.clean.results.filter(\.isActive).count) categories.",
+                              detail: "\(state.clean.selectedItemCount.counted("item")) selected across \(state.clean.results.filter(\.isActive).count.counted("category", "categories")).",
                               action: "Review") { state.section = .clean })
         case .cleaning:
             rows.append(.init(symbol: "sparkles", color: .accentColor, title: "Cleaning…", detail: state.clean.currentStep, isBusy: true))
@@ -141,7 +141,7 @@ struct OverviewView: View {
                               action: "Open") { state.section = .purge })
         } else {
             rows.append(.init(symbol: "hammer", color: .indigo, title: "\(state.purge.totalSize.formattedBytes) in build folders",
-                              detail: "Across \(state.purge.projects.count) projects.", action: "Review") { state.section = .purge })
+                              detail: "Across \(state.purge.projects.count.counted("project")).", action: "Review") { state.section = .purge })
         }
         if m.diskFraction > 0.85 {
             rows.append(.init(symbol: "internaldrive", color: .orange, title: "Your startup disk is \(m.diskFraction.percent) full",
@@ -218,6 +218,8 @@ struct MetricTile: View {
     let color: Color
     let history: [Double]
     var maxValue: Double? = nil
+    /// Shown as a gauge instead of a history graph, for values like battery charge.
+    var level: Double? = nil
 
     var body: some View {
         GroupBox {
@@ -233,10 +235,13 @@ struct MetricTile: View {
                     .minimumScaleFactor(0.7)
                 Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 Group {
-                    if history.count > 2 {
-                        Sparkline(values: history, color: color, maxValue: maxValue)
+                    if let level {
+                        Gauge(value: level) { EmptyView() }
+                            .gaugeStyle(.accessoryLinearCapacity)
+                            .tint(level < 0.2 ? .red : color)
+                            .frame(maxHeight: .infinity, alignment: .bottom)
                     } else {
-                        Color.clear
+                        Sparkline(values: history, color: color, maxValue: maxValue)
                     }
                 }
                 .frame(height: 30)

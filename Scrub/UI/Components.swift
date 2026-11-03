@@ -1,5 +1,4 @@
 import SwiftUI
-import Charts
 
 // MARK: - Storage bar
 
@@ -82,7 +81,7 @@ struct SelectionSummary: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text(bytes.formattedBytes)
+            Text(bytes > 0 ? bytes.formattedBytes : "None Selected")
                 .font(.headline)
                 .monospacedDigit()
                 .contentTransition(.numericText())
@@ -128,28 +127,42 @@ struct ScanningPlaceholder: View {
 
 // MARK: - Charts
 
+/// A scrolling history graph. New samples enter on the right, the way Activity Monitor draws them,
+/// so a short history doesn't get squeezed into the corner of the card.
 struct Sparkline: View {
     let values: [Double]
     let color: Color
     var maxValue: Double? = nil
+    var capacity = SystemMonitor.historyLength
 
     var body: some View {
-        let top = max(maxValue ?? values.max() ?? 1, 0.0001)
-        Chart {
-            ForEach(Array(values.enumerated()), id: \.offset) { index, value in
-                AreaMark(x: .value("t", index), y: .value("v", value))
-                    .foregroundStyle(color.opacity(0.18))
-                    .interpolationMethod(.monotone)
-                LineMark(x: .value("t", index), y: .value("v", value))
-                    .foregroundStyle(color)
-                    .lineStyle(StrokeStyle(lineWidth: 1.5))
-                    .interpolationMethod(.monotone)
+        Canvas { context, size in
+            guard values.count > 2 else { return }
+            let top = max(maxValue ?? values.max() ?? 1, 0.0001)
+            let step = size.width / CGFloat(max(capacity - 1, 1))
+            let start = size.width - step * CGFloat(values.count - 1)
+            let points = values.enumerated().map { i, v in
+                CGPoint(x: start + step * CGFloat(i),
+                        y: size.height - 1 - (size.height - 2) * CGFloat(min(max(v / top, 0), 1)))
             }
+            var line = Path()
+            line.move(to: points[0])
+            for (a, b) in zip(points, points.dropFirst()) {
+                let mid = CGPoint(x: (a.x + b.x) / 2, y: (a.y + b.y) / 2)
+                line.addQuadCurve(to: mid, control: a)
+            }
+            line.addLine(to: points[points.count - 1])
+
+            var area = line
+            area.addLine(to: CGPoint(x: points[points.count - 1].x, y: size.height))
+            area.addLine(to: CGPoint(x: points[0].x, y: size.height))
+            area.closeSubpath()
+
+            context.fill(area, with: .linearGradient(
+                Gradient(colors: [color.opacity(0.28), color.opacity(0.02)]),
+                startPoint: .zero, endPoint: CGPoint(x: 0, y: size.height)))
+            context.stroke(line, with: .color(color), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
         }
-        .chartXAxis(.hidden)
-        .chartYAxis(.hidden)
-        .chartXScale(domain: 0...max(SystemMonitor.historyLength - 1, values.count - 1))
-        .chartYScale(domain: 0...top)
         .accessibilityHidden(true)
     }
 }

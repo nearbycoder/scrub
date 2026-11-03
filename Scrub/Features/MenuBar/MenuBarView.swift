@@ -47,7 +47,10 @@ struct MenuBarView: View {
                     open(.clean)
                     if state.clean.phase == .idle || state.clean.phase == .finished { state.clean.scan() }
                 }
-                MenuRow(title: "Free Up Memory", symbol: "memorychip") { state.optimize.run(only: ["memory"]) }
+                MenuRow(title: "Free Up Memory", symbol: "memorychip", status: state.optimize.status["memory"]) {
+                    state.optimize.run(only: ["memory"])
+                }
+                .disabled(state.optimize.isRunning)
                 MenuRow(title: "Open Scrub", symbol: "macwindow") { open(.overview) }
             }
             Divider()
@@ -86,21 +89,32 @@ struct MenuBarView: View {
     }
 }
 
-/// A full-width, menu-like row that highlights on hover.
+/// A full-width row that highlights on hover the way menu items do.
 private struct MenuRow: View {
     let title: String
     let symbol: String
+    var status: OptimizeStatus? = nil
     let action: () -> Void
     @State private var hovering = false
+    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
+        let highlighted = hovering && isEnabled
         Button(action: action) {
-            Label(title, systemImage: symbol)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
-                .background(hovering ? Color.accentColor.opacity(0.18) : .clear, in: .rect(cornerRadius: 6))
-                .contentShape(.rect)
+            HStack {
+                Label(title, systemImage: symbol)
+                Spacer()
+                switch status {
+                case .running, .pending: ProgressView().controlSize(.mini)
+                case .done: Image(systemName: "checkmark").foregroundStyle(highlighted ? .white : .green)
+                default: EmptyView()
+                }
+            }
+            .foregroundStyle(highlighted ? .white : .primary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(highlighted ? Color.accentColor : .clear, in: .rect(cornerRadius: 6))
+            .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }

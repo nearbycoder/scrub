@@ -15,8 +15,12 @@ struct OptimizeView: View {
             }
             Section {
                 Toggle(isOn: Binding(get: { model.touchIDEnabled }, set: { model.setTouchID($0) })) {
-                    Text("Use Touch ID for sudo")
-                    Text("Approve sudo in Terminal with your fingerprint. The setting is kept in /etc/pam.d/sudo_local, so it survives macOS updates.")
+                    Label {
+                        Text("Use Touch ID for sudo")
+                        Text("Approve sudo in Terminal with your fingerprint. The setting is kept in /etc/pam.d/sudo_local, so it survives macOS updates.")
+                    } icon: {
+                        TaskIcon(symbol: "touchid")
+                    }
                 }
                 .disabled(model.touchIDBusy)
             } header: {
@@ -78,9 +82,19 @@ private struct TaskRow: View {
                 Text(task.title)
                 Text(task.detail)
             } icon: {
-                Image(systemName: task.symbol).foregroundStyle(.secondary)
+                TaskIcon(symbol: task.symbol)
             }
         }
+    }
+}
+
+/// SF Symbols have different widths; a fixed frame keeps every row's title on the same line.
+private struct TaskIcon: View {
+    let symbol: String
+    var body: some View {
+        Image(systemName: symbol)
+            .foregroundStyle(.secondary)
+            .frame(width: 22, alignment: .center)
     }
 }
 
