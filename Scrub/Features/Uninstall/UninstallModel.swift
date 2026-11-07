@@ -73,25 +73,28 @@ final class UninstallModel {
         let leftoverMap = leftovers
         Task.detached(priority: .userInitiated) { [weak self] in
             var report = RemovalReport()
+            // Root-owned items from every selected app are collected and removed together,
+            // so the user approves once instead of once per app.
+            var adminPaths: [String] = []
             for app in targets {
                 await MainActor.run { self?.removalStatus = "Removing \(app.name)…" }
                 await Self.quit(app)
                 var userPaths: [String] = []
-                var adminPaths: [String] = []
                 let items = (leftoverMap[app.path] ?? LeftoverFinder.find(for: app)).filter { !excluded.contains($0.path) }
                 for item in items {
                     if item.requiresAdmin { adminPaths.append(item.path) } else { userPaths.append(item.path) }
                 }
                 if !keepApp { userPaths.insert(app.path, at: 0) }
                 let r = Remover.remove(userPaths, mode: .trash)
-                report.merge(r)
                 adminPaths += r.needsAdmin
-                if !adminPaths.isEmpty {
-                    report.needsAdmin = []
-                    report.merge(await Remover.removeWithAdmin(adminPaths, mode: .trash))
-                }
-                if !keepApp { Self.removeFromDock(app) }
+                report.merge(r)
+                report.needsAdmin = []
             }
+            if !adminPaths.isEmpty {
+                await MainActor.run { self?.removalStatus = "Waiting for approval…" }
+                report.merge(await Remover.removeWithAdmin(adminPaths, mode: .trash))
+            }
+            if !keepApp { Self.removeFromDock(targets) }
             let final = report
             LeftoverIndex.shared.invalidate()
             await MainActor.run {
@@ -125,14 +128,15 @@ final class UninstallModel {
         try? await Task.sleep(for: .milliseconds(300))
     }
 
-    /// Removes the app's tile from the Dock if it was pinned there.
-    static func removeFromDock(_ app: InstalledApp) {
-        guard let dock = UserDefaults(suiteName: "com.apple.dock"),
+    /// Removes the apps' tiles from the Dock if they were pinned there, restarting the Dock once.
+    static func removeFromDock(_ apps: [InstalledApp]) {
+        let ids = Set(apps.filter { !FileManager.default.fileExists(atPath: $0.path) }.map(\.bundleID))
+        guard !ids.isEmpty, let dock = UserDefaults(suiteName: "com.apple.dock"),
               var persistent = dock.array(forKey: "persistent-apps") as? [[String: Any]] else { return }
         let before = persistent.count
         persistent.removeAll { tile in
             let data = tile["tile-data"] as? [String: Any]
-            return (data?["bundle-identifier"] as? String) == app.bundleID
+            return (data?["bundle-identifier"] as? String).map(ids.contains) ?? false
         }
         guard persistent.count != before else { return }
         dock.set(persistent, forKey: "persistent-apps")

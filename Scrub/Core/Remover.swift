@@ -76,15 +76,19 @@ enum Remover {
         var sizes: [String: Int64] = [:]
         for p in allowed { sizes[p] = FileSizer.allocatedSize(atPath: p) }
         let trash = Paths.home + "/.Trash"
-        let commands = allowed.map { p -> String in
+        let stamp = Int(Date().timeIntervalSince1970)
+        let commands = allowed.enumerated().map { i, p -> String in
             let q = Shell.quote(p)
             if mode == .trash {
-                let dest = Shell.quote(trash + "/" + (p as NSString).lastPathComponent + " \(Int(Date().timeIntervalSince1970))")
+                // The index keeps two items with the same name from overwriting each other in the Trash.
+                let dest = Shell.quote(trash + "/" + (p as NSString).lastPathComponent + " \(stamp)-\(i)")
                 return "/bin/mv -f \(q) \(dest) && /usr/sbin/chown -R \(getuid()) \(dest) && echo OK:\(q)"
             }
             return "/bin/rm -rf \(q) && echo OK:\(q)"
         }
-        let result = await Shell.runAsAdmin(commands.joined(separator: "; "))
+        let noun = allowed.count == 1 ? "a protected item" : "\(allowed.count) protected items"
+        let verb = mode == .trash ? "move \(noun) to the Trash" : "delete \(noun)"
+        let result = await Shell.runAsAdmin(commands.joined(separator: "; "), prompt: "Scrub needs your permission to \(verb).")
         for p in allowed {
             if !FileManager.default.fileExists(atPath: p) {
                 report.removed.append(p)

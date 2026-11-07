@@ -50,11 +50,11 @@ enum Shell {
 
     /// Runs a /bin/sh script with administrator privileges, showing the standard macOS
     /// authentication dialog once for the whole batch.
-    static func runAsAdmin(_ script: String) async -> ShellResult {
+    static func runAsAdmin(_ script: String, prompt: String = "Scrub needs your permission to run maintenance tasks.") async -> ShellResult {
         let escaped = script
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
-        let apple = "do shell script \"\(escaped)\" with administrator privileges with prompt \"Scrub needs your permission to run maintenance tasks.\""
+        let apple = "do shell script \"\(escaped)\" with administrator privileges with prompt \"\(prompt)\""
         let result = await run("/usr/bin/osascript", ["-e", apple], timeout: 900)
         if let e = result.error, e.contains("-128") {
             return ShellResult(status: 1, output: result.output, error: "Cancelled")
